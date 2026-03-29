@@ -90,6 +90,42 @@ SURVEY_SCORE_PATTERNS = [
     "nps", "nps_score", "net_promoter", "csat", "satisfaction", "rating", "score"
 ]
 
+# Rate / percentage column detection
+RATE_PATTERNS = [
+    "rate", "ratio", "pct", "percent", "proportion", "margin",
+    "ctr", "conversion", "churn", "retention", "growth", "yield",
+    "bounce", "attrition", "utilization"
+]
+
+# Funnel stage patterns (ordered high→low)
+FUNNEL_PATTERNS = [
+    ["impressions", "views", "reach", "visits"],
+    ["clicks", "click", "sessions", "engagements"],
+    ["leads", "signups", "sign_up", "registrations"],
+    ["conversions", "conversion", "purchases", "orders", "sales"],
+]
+
+
+def resolve_column(df, candidates: list, strict: bool = False):
+    """Fuzzy-match a column name from a list of candidates.
+
+    Tries exact match first, then substring containment.
+    Returns the original DataFrame column name or None.
+    """
+    columns_lower = {c.lower().strip(): c for c in df.columns}
+    # Exact match pass
+    for candidate in candidates:
+        if candidate.lower() in columns_lower:
+            return columns_lower[candidate.lower()]
+    if strict:
+        return None
+    # Substring containment pass
+    for candidate in candidates:
+        for col_lower, col_orig in columns_lower.items():
+            if candidate.lower() in col_lower:
+                return col_orig
+    return None
+
 
 class DatasetDetector:
     """
@@ -115,12 +151,14 @@ class DatasetDetector:
         self.df = df
         self.name = name
         self._detected_type: Optional[str] = None
+        self._secondary_type: Optional[str] = None
         self._confidence: float = 0.0
         self._column_roles: Dict[str, str] = {}
         self._date_columns: List[str] = []
         self._numeric_columns: List[str] = []
         self._categorical_columns: List[str] = []
         self._monetary_columns: List[str] = []
+        self._rate_columns: List[str] = []
 
         # Run detection
         self._analyze()
@@ -149,6 +187,10 @@ class DatasetDetector:
                 if any(p in col_lower for p in MONETARY_PATTERNS):
                     self._monetary_columns.append(col)
                     self._column_roles[col] = "monetary"
+                # Check if rate / percentage
+                elif any(p in col_lower for p in RATE_PATTERNS):
+                    self._rate_columns.append(col)
+                    self._column_roles[col] = "rate"
                 else:
                     self._column_roles[col] = "numeric"
             else:
@@ -215,11 +257,9 @@ class DatasetDetector:
 
         return False
 
-    def _detect_dataset_type(self):
-        """Detect the dataset category based on column name matching."""
+    def _compute_type_scores(self) -> Dict[str, int]:
+        """Score each dataset type against column names."""
         col_names_lower = [c.lower().strip() for c in self.df.columns]
-        col_text = " ".join(col_names_lower)
-
         scores = {}
         for dtype, patterns in COLUMN_PATTERNS.items():
             score = 0
@@ -234,13 +274,17 @@ class DatasetDetector:
                     if p in col:
                         score += 1
             scores[dtype] = score
+        return scores
+
+    def _detect_dataset_type(self):
+        """Detect primary and secondary dataset categories."""
+        scores = self._compute_type_scores()
 
         if scores:
-            best_type = max(scores, key=scores.get)
-            best_score = scores[best_type]
+            sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+            best_type, best_score = sorted_scores[0]
             total_cols = len(self.df.columns)
 
-            # Confidence based on score relative to column count
             self._confidence = min(1.0, best_score / (total_cols * 1.5))
 
             if best_score >= 2:
@@ -248,6 +292,12 @@ class DatasetDetector:
             else:
                 self._detected_type = "generic"
                 self._confidence = 0.3
+
+            # Secondary type — if runner-up is within 60% of primary score
+            if len(sorted_scores) >= 2:
+                sec_type, sec_score = sorted_scores[1]
+                if sec_score >= 2 and sec_score >= best_score * 0.6:
+                    self._secondary_type = sec_type
         else:
             self._detected_type = "generic"
             self._confidence = 0.1
@@ -261,6 +311,11 @@ class DatasetDetector:
     def confidence(self) -> float:
         """Get detection confidence (0-1)."""
         return self._confidence
+
+    @property
+    def secondary_type(self) -> Optional[str]:
+        """Second-best dataset type (if close to primary)."""
+        return self._secondary_type
 
     @property
     def date_columns(self) -> List[str]:
@@ -277,6 +332,10 @@ class DatasetDetector:
     @property
     def monetary_columns(self) -> List[str]:
         return self._monetary_columns
+
+    @property
+    def rate_columns(self) -> List[str]:
+        return self._rate_columns
 
     def get_primary_metric(self) -> Optional[str]:
         """Get the most likely primary metric column (monetary > largest numeric)."""
@@ -401,113 +460,157 @@ class DatasetDetector:
 
         return kpis
 
-    def get_chart_recommendations(self) -> List[Dict[str, str]]:
+    def get_chart_recommendations(self) -> List[Dict[str, Any]]:
         """
         Recommend appropriate chart types based on detected schema.
+        Multi-metric: explores multiple column combinations.
 
         Returns:
-            List of dicts with 'type', 'x', 'y', 'title' keys.
+            List of dicts with 'type', 'x', 'y', 'title' (and optional extra keys).
         """
-        charts = []
+        charts: List[Dict[str, Any]] = []
         primary_metric = self.get_primary_metric()
         primary_category = self.get_primary_category()
         primary_date = self.get_primary_date()
         nps_col = self._find_column_by_patterns(["nps", "nps_score", "net_promoter"])
 
-        def has_enough_numeric(col: Optional[str], min_points: int = 5, min_unique: int = 2) -> bool:
+        # ── helpers ──────────────────────────────────────────────
+        def _enough_num(col, min_pts=5, min_uniq=2):
             if not col or col not in self.df.columns:
                 return False
-            vals = pd.to_numeric(self.df[col], errors="coerce").dropna()
-            return len(vals) >= min_points and vals.nunique() >= min_unique
+            v = pd.to_numeric(self.df[col], errors="coerce").dropna()
+            return len(v) >= min_pts and v.nunique() >= min_uniq
 
-        def has_enough_category(col: Optional[str], min_points: int = 5, min_unique: int = 2) -> bool:
+        def _enough_cat(col, min_pts=5, min_uniq=2):
             if not col or col not in self.df.columns:
                 return False
-            vals = self.df[col].dropna().astype(str)
-            return len(vals) >= min_points and vals.nunique() >= min_unique
+            v = self.df[col].dropna().astype(str)
+            return len(v) >= min_pts and v.nunique() >= min_uniq
 
-        def has_enough_dates(col: Optional[str], min_points: int = 5, min_unique: int = 3) -> bool:
+        def _enough_date(col, min_pts=5, min_uniq=3):
             if not col or col not in self.df.columns:
                 return False
-            parsed = pd.to_datetime(self.df[col], errors="coerce").dropna()
-            return len(parsed) >= min_points and parsed.nunique() >= min_unique
+            p = pd.to_datetime(self.df[col], errors="coerce").dropna()
+            return len(p) >= min_pts and p.nunique() >= min_uniq
 
-        def add_chart(chart: Dict[str, str]):
-            if chart not in charts:
-                charts.append(chart)
+        def _label(col):
+            return col.replace("_", " ").title() if col else ""
 
-        # NPS distribution (survey datasets)
-        if has_enough_numeric(nps_col, min_points=6, min_unique=3):
-            add_chart({
-                "type": "histogram",
-                "x": nps_col,
-                "y": None,
-                "title": f"Distribution of {nps_col.replace('_', ' ').title()}"
-            })
+        def add(chart):
+            sig = (chart.get("type"), chart.get("x"), chart.get("y"))
+            for c in charts:
+                if (c.get("type"), c.get("x"), c.get("y")) == sig:
+                    return
+            charts.append(chart)
 
-        # Time series trend (if date + metric exist)
-        if has_enough_dates(primary_date) and has_enough_numeric(primary_metric):
-            add_chart({
-                "type": "line",
-                "x": primary_date,
-                "y": primary_metric,
-                "title": f"{primary_metric.replace('_', ' ').title()} Over Time"
-            })
-
-        # Bar chart by category
-        if has_enough_category(primary_category) and has_enough_numeric(primary_metric):
-            add_chart({
-                "type": "bar",
-                "x": primary_category,
-                "y": primary_metric,
-                "title": f"{primary_metric.replace('_', ' ').title()} by {primary_category.replace('_', ' ').title()}"
-            })
-
-        # Distribution histogram for primary metric
-        if has_enough_numeric(primary_metric, min_points=8, min_unique=3):
-            add_chart({
-                "type": "histogram",
-                "x": primary_metric,
-                "y": None,
-                "title": f"Distribution of {primary_metric.replace('_', ' ').title()}"
-            })
-
-        # Scatter plot (if 2+ numeric columns)
-        numeric_candidates = []
+        # Build ranked numeric candidates
+        num_cands = []
         for col in self._numeric_columns:
-            vals = pd.to_numeric(self.df[col], errors="coerce").dropna()
-            if len(vals) >= 8 and vals.nunique() >= 3:
-                score = float(vals.std()) if vals.nunique() > 1 else 0.0
-                numeric_candidates.append((col, score))
+            v = pd.to_numeric(self.df[col], errors="coerce").dropna()
+            if len(v) >= 8 and v.nunique() >= 3:
+                num_cands.append((col, float(v.std()) if v.nunique() > 1 else 0.0))
+        num_cands.sort(key=lambda x: x[1], reverse=True)
 
-        if len(numeric_candidates) >= 2:
-            numeric_candidates = sorted(numeric_candidates, key=lambda x: x[1], reverse=True)
-            x_col, y_col = numeric_candidates[0][0], numeric_candidates[1][0]
-            add_chart({
-                "type": "scatter",
-                "x": x_col,
-                "y": y_col,
-                "title": f"{x_col.replace('_', ' ').title()} vs {y_col.replace('_', ' ').title()}"
-            })
+        # Usable categories (2-50 unique values)
+        good_cats = [c for c in self._categorical_columns
+                     if 2 <= self.df[c].nunique() <= 50]
 
-        # Pie chart for categorical distribution
-        if has_enough_category(primary_category):
-            add_chart({
-                "type": "pie",
-                "x": primary_category,
-                "y": primary_metric or "count",
-                "title": f"{primary_category.replace('_', ' ').title()} Distribution"
-            })
+        # Metrics to iterate: monetary first, then top numeric
+        iter_metrics = list(dict.fromkeys(
+            self._monetary_columns[:3]
+            + [c for c, _ in num_cands[:4] if c not in self._monetary_columns]
+        ))
 
-        # Box plot for numeric by category
-        if has_enough_category(primary_category) and len(numeric_candidates) > 0:
-            box_metric = numeric_candidates[0][0]
-            add_chart({
-                "type": "box",
-                "x": primary_category,
-                "y": box_metric,
-                "title": f"{box_metric.replace('_', ' ').title()} by {primary_category.replace('_', ' ').title()}"
-            })
+        # ── 1. NPS / survey histogram ────────────────────────────
+        if _enough_num(nps_col, 6, 3):
+            add({"type": "histogram", "x": nps_col, "y": None,
+                 "title": f"Distribution of {_label(nps_col)}"})
+
+        # ── 2. Time-series lines (multi-metric) ─────────────────
+        for date_col in self._date_columns[:2]:
+            if not _enough_date(date_col):
+                continue
+            for metric in iter_metrics[:3]:
+                if _enough_num(metric):
+                    add({"type": "line", "x": date_col, "y": metric,
+                         "title": f"{_label(metric)} Over Time"})
+
+        # ── 3. Bar charts (multi-category × multi-metric) ───────
+        for cat in good_cats[:3]:
+            for metric in iter_metrics[:2]:
+                if _enough_num(metric):
+                    add({"type": "bar", "x": cat, "y": metric,
+                         "title": f"{_label(metric)} by {_label(cat)}"})
+
+        # ── 4. Stacked area (composition over time) ─────────────
+        if primary_date and _enough_date(primary_date) and good_cats:
+            best_cat = good_cats[0]
+            metric_for_stack = iter_metrics[0] if iter_metrics else None
+            if metric_for_stack and _enough_num(metric_for_stack):
+                add({"type": "stacked_area", "x": primary_date,
+                     "y": metric_for_stack, "color": best_cat,
+                     "title": f"{_label(metric_for_stack)} Composition Over Time"})
+
+        # ── 5. Distribution histograms ───────────────────────────
+        for metric in iter_metrics[:2]:
+            if _enough_num(metric, 8, 3):
+                add({"type": "histogram", "x": metric, "y": None,
+                     "title": f"Distribution of {_label(metric)}"})
+
+        # ── 6. Scatter plots (top numeric pairs) ────────────────
+        if len(num_cands) >= 2:
+            pairs_added = 0
+            for i in range(len(num_cands)):
+                for j in range(i + 1, len(num_cands)):
+                    if pairs_added >= 2:
+                        break
+                    x_c, y_c = num_cands[i][0], num_cands[j][0]
+                    add({"type": "scatter", "x": x_c, "y": y_c,
+                         "title": f"{_label(x_c)} vs {_label(y_c)}"})
+                    pairs_added += 1
+                if pairs_added >= 2:
+                    break
+
+        # ── 7. Pie chart ─────────────────────────────────────────
+        if _enough_cat(primary_category):
+            add({"type": "pie", "x": primary_category,
+                 "y": primary_metric or "count",
+                 "title": f"{_label(primary_category)} Distribution"})
+
+        # ── 8. Box plot (numeric by category) ────────────────────
+        if good_cats and num_cands:
+            add({"type": "box", "x": good_cats[0], "y": num_cands[0][0],
+                 "title": f"{_label(num_cands[0][0])} by {_label(good_cats[0])}"})
+
+        # ── 9. Correlation heatmap (3+ numeric columns) ─────────
+        if len(self._numeric_columns) >= 3:
+            add({"type": "heatmap", "x": None, "y": None,
+                 "columns": self._numeric_columns[:12],
+                 "title": "Correlation Between Numeric Variables"})
+
+        # ── 10. Treemap (hierarchical categories) ────────────────
+        if len(good_cats) >= 2 and iter_metrics:
+            add({"type": "treemap",
+                 "path": good_cats[:2], "y": iter_metrics[0],
+                 "title": f"{_label(iter_metrics[0])} by {_label(good_cats[0])} → {_label(good_cats[1])}"})
+
+        # ── 11. Funnel chart (marketing conversion) ──────────────
+        funnel_cols = []
+        for stage_patterns in FUNNEL_PATTERNS:
+            found = self._find_column_by_patterns(stage_patterns,
+                                                   within=self._numeric_columns)
+            if found:
+                funnel_cols.append(found)
+        if len(funnel_cols) >= 2:
+            add({"type": "funnel", "columns": funnel_cols,
+                 "title": "Conversion Funnel"})
+
+        # ── 12. Waterfall (financial) ────────────────────────────
+        if self.detected_type == "financial" and iter_metrics:
+            if good_cats:
+                add({"type": "waterfall", "x": good_cats[0],
+                     "y": iter_metrics[0],
+                     "title": f"{_label(iter_metrics[0])} Waterfall"})
 
         return charts
 
@@ -560,10 +663,12 @@ class DatasetDetector:
         return {
             "name": self.name,
             "detected_type": self.detected_type,
+            "secondary_type": self.secondary_type,
             "confidence": self.confidence,
             "shape": {"rows": len(self.df), "columns": len(self.df.columns)},
             "date_columns": self._date_columns,
             "monetary_columns": self._monetary_columns,
+            "rate_columns": self._rate_columns,
             "numeric_columns": self._numeric_columns,
             "categorical_columns": self._categorical_columns,
             "primary_metric": self.get_primary_metric(),

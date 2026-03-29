@@ -601,6 +601,18 @@ def auto_chart(df: pd.DataFrame, chart_spec: dict) -> Optional[go.Figure]:
             return _auto_pie_chart(df, x_col, y_col, title)
         elif chart_type == "box":
             return _auto_box_chart(df, x_col, y_col, title)
+        elif chart_type == "heatmap":
+            return _auto_heatmap(df, chart_spec.get("columns", []), title)
+        elif chart_type == "stacked_area":
+            return _auto_stacked_area(df, x_col, y_col,
+                                      chart_spec.get("color"), title)
+        elif chart_type == "treemap":
+            return _auto_treemap(df, chart_spec.get("path", []),
+                                 y_col, title)
+        elif chart_type == "funnel":
+            return _auto_funnel(df, chart_spec.get("columns", []), title)
+        elif chart_type == "waterfall":
+            return _auto_waterfall(df, x_col, y_col, title)
         else:
             return _auto_bar_chart(df, x_col, y_col, title)
     except Exception:
@@ -822,7 +834,304 @@ def _auto_box_chart(df, x_col, y_col, title):
     return fig
 
 
-def auto_generate_charts(df: pd.DataFrame, chart_specs: list, max_charts: int = 6) -> list:
+# ─── New Auto-Chart Types ─────────────────────────────────────────
+
+def _auto_heatmap(df, columns, title):
+    """Correlation heatmap for numeric columns."""
+    available = [c for c in columns if c in df.columns
+                 and pd.api.types.is_numeric_dtype(df[c])]
+    if len(available) < 3:
+        return _empty_figure(f"🔥 {title}", "Need at least 3 numeric columns.")
+
+    corr = df[available].corr().round(2)
+
+    fig = go.Figure(go.Heatmap(
+        z=corr.values,
+        x=corr.columns.tolist(),
+        y=corr.index.tolist(),
+        colorscale=[
+            [0.0, "#FF6B6B"],
+            [0.5, "#1A1D23"],
+            [1.0, "#00D4FF"]
+        ],
+        zmin=-1, zmax=1,
+        text=corr.values.round(2),
+        texttemplate="%{text}",
+        textfont=dict(size=10),
+        hoverongaps=False
+    ))
+    _apply_theme(fig, f"🔥 {title}")
+    fig.update_layout(height=max(400, 50 * len(available)))
+    return fig
+
+
+def _auto_stacked_area(df, x_col, y_col, color_col, title):
+    """Stacked area chart showing composition over time."""
+    if not x_col or x_col not in df.columns:
+        return _empty_figure(f"📊 {title}", "Date column is missing.")
+    if not y_col or y_col not in df.columns:
+        return _empty_figure(f"📊 {title}", "Metric column is missing.")
+    if not color_col or color_col not in df.columns:
+        return _empty_figure(f"📊 {title}", "Category column is missing.")
+
+    df_copy = df.copy()
+    df_copy[x_col] = pd.to_datetime(df_copy[x_col], errors="coerce")
+    df_copy[y_col] = _as_numeric(df_copy[y_col])
+    df_copy = df_copy.dropna(subset=[x_col, y_col, color_col])
+
+    if len(df_copy) < 5:
+        return _empty_figure(f"📊 {title}", "Not enough data for stacked area.")
+
+    # Truncate categories to top 6
+    top_cats = df_copy[color_col].value_counts().head(6).index
+    df_copy[color_col] = df_copy[color_col].apply(
+        lambda v: v if v in top_cats else "Other")
+
+    # Group by month + category
+    df_copy["_period"] = df_copy[x_col].dt.to_period("M").dt.to_timestamp()
+    grouped = (df_copy.groupby(["_period", color_col])[y_col]
+               .sum().reset_index())
+
+    if grouped.empty or grouped["_period"].nunique() < 3:
+        return _empty_figure(f"📊 {title}", "Not enough time periods.")
+
+    fig = px.area(
+        grouped, x="_period", y=y_col, color=color_col,
+        color_discrete_sequence=THEME["accent_colors"],
+        groupnorm=None
+    )
+    _apply_theme(fig, f"📊 {title}")
+    fig.update_xaxes(title="Period")
+    fig.update_yaxes(title=y_col.replace("_", " ").title())
+    return fig
+
+
+def _auto_treemap(df, path_cols, value_col, title):
+    """Hierarchical treemap chart."""
+    available_paths = [c for c in path_cols if c in df.columns]
+    if len(available_paths) < 1:
+        return _empty_figure(f"🌳 {title}", "Need at least 1 category column.")
+
+    df_copy = df.copy()
+    if value_col and value_col in df_copy.columns:
+        df_copy[value_col] = _as_numeric(df_copy[value_col])
+        df_copy = df_copy.dropna(subset=available_paths + [value_col])
+    else:
+        df_copy = df_copy.dropna(subset=available_paths)
+        value_col = None
+
+    if len(df_copy) < 5:
+        return _empty_figure(f"🌳 {title}", "Not enough data for treemap.")
+
+    # Truncate high-cardinality categories
+    for col in available_paths:
+        if df_copy[col].nunique() > 20:
+            top = df_copy[col].value_counts().head(15).index
+            df_copy = df_copy[df_copy[col].isin(top)]
+
+    try:
+        fig = px.treemap(
+            df_copy,
+            path=[px.Constant("All")] + available_paths,
+            values=value_col,
+            color_discrete_sequence=THEME["accent_colors"],
+        )
+        _apply_theme(fig, f"🌳 {title}")
+        fig.update_layout(margin=dict(t=60, l=10, r=10, b=10))
+        return fig
+    except Exception:
+        return _empty_figure(f"🌳 {title}", "Could not build treemap.")
+
+
+def _auto_funnel(df, columns, title):
+    """Conversion funnel chart."""
+    available = [c for c in columns if c in df.columns
+                 and pd.api.types.is_numeric_dtype(df[c])]
+    if len(available) < 2:
+        return _empty_figure(f"🔻 {title}", "Need at least 2 funnel stages.")
+
+    stage_values = []
+    for col in available:
+        total = _as_numeric(df[col]).sum()
+        if total > 0:
+            stage_values.append((col.replace("_", " ").title(), float(total)))
+
+    if len(stage_values) < 2:
+        return _empty_figure(f"🔻 {title}", "Not enough data for funnel.")
+
+    # Sort descending (largest stage first — typical funnel shape)
+    stage_values.sort(key=lambda x: x[1], reverse=True)
+
+    fig = go.Figure(go.Funnel(
+        y=[s[0] for s in stage_values],
+        x=[s[1] for s in stage_values],
+        textinfo="value+percent initial+percent previous",
+        marker=dict(
+            color=THEME["accent_colors"][:len(stage_values)],
+            line=dict(width=1, color=THEME["grid_color"])
+        ),
+        connector=dict(line=dict(color=THEME["grid_color"], width=1))
+    ))
+    _apply_theme(fig, f"🔻 {title}")
+    return fig
+
+
+def _auto_waterfall(df, x_col, y_col, title):
+    """Waterfall chart showing cumulative contributions."""
+    if not x_col or x_col not in df.columns:
+        return _empty_figure(f"💧 {title}", "Category column is missing.")
+    if not y_col or y_col not in df.columns:
+        return _empty_figure(f"💧 {title}", "Value column is missing.")
+
+    df_copy = df[[x_col, y_col]].copy()
+    df_copy[y_col] = _as_numeric(df_copy[y_col])
+    df_copy = df_copy.dropna(subset=[x_col, y_col])
+
+    if len(df_copy) < 2:
+        return _empty_figure(f"💧 {title}", "Not enough data for waterfall.")
+
+    agg = df_copy.groupby(x_col)[y_col].sum().sort_values(ascending=False).head(12)
+
+    measures = ["relative"] * len(agg) + ["total"]
+    x_labels = list(agg.index.astype(str)) + ["Total"]
+    y_values = list(agg.values) + [agg.sum()]
+
+    fig = go.Figure(go.Waterfall(
+        orientation="v",
+        measure=measures,
+        x=x_labels,
+        y=y_values,
+        textposition="outside",
+        text=[f"{v:,.0f}" for v in y_values],
+        connector=dict(line=dict(color=THEME["grid_color"])),
+        increasing=dict(marker=dict(color=THEME["accent_colors"][2])),
+        decreasing=dict(marker=dict(color=THEME["accent_colors"][1])),
+        totals=dict(marker=dict(color=THEME["accent_colors"][0]))
+    ))
+    _apply_theme(fig, f"💧 {title}")
+    return fig
+
+
+# ─── ML Visualization Charts ─────────────────────────────────────
+
+def anomaly_overlay_chart(
+    df: pd.DataFrame,
+    x_col: str,
+    y_col: str,
+    anomaly_col: str = "is_anomaly",
+    score_col: str = "anomaly_score"
+) -> go.Figure:
+    """Scatter plot with anomalies highlighted in contrasting color."""
+    required = [x_col, y_col, anomaly_col]
+    if any(c not in df.columns for c in required):
+        return _empty_figure("🚨 Anomaly Detection",
+                             "Required columns are missing.")
+
+    df_copy = df.copy()
+    df_copy[x_col] = _as_numeric(df_copy[x_col])
+    df_copy[y_col] = _as_numeric(df_copy[y_col])
+    df_copy = df_copy.dropna(subset=[x_col, y_col])
+    if len(df_copy) < 5:
+        return _empty_figure("🚨 Anomaly Detection", "Not enough data.")
+
+    df_copy["_label"] = df_copy[anomaly_col].map(
+        {True: "⚠ Anomaly", False: "Normal"})
+
+    hover_data = [score_col] if score_col in df_copy.columns else None
+
+    fig = px.scatter(
+        df_copy, x=x_col, y=y_col, color="_label",
+        color_discrete_map={"⚠ Anomaly": "#FF6B6B", "Normal": "#00D4FF"},
+        opacity=0.7,
+        hover_data=hover_data,
+        size=score_col if score_col in df_copy.columns else None,
+        size_max=14
+    )
+    _apply_theme(fig, f"🚨 Anomalies: {x_col.replace('_', ' ').title()} vs "
+                      f"{y_col.replace('_', ' ').title()}")
+    return fig
+
+
+def cluster_scatter_chart(
+    df: pd.DataFrame,
+    x_col: str,
+    y_col: str,
+    cluster_col: str = "cluster"
+) -> go.Figure:
+    """2-D scatter colored by cluster assignment."""
+    required = [x_col, y_col, cluster_col]
+    if any(c not in df.columns for c in required):
+        return _empty_figure("🎯 Customer Clusters",
+                             "Required columns are missing.")
+
+    df_copy = df.copy()
+    df_copy[x_col] = _as_numeric(df_copy[x_col])
+    df_copy[y_col] = _as_numeric(df_copy[y_col])
+    df_copy = df_copy.dropna(subset=[x_col, y_col])
+    if len(df_copy) < 5:
+        return _empty_figure("🎯 Customer Clusters", "Not enough data.")
+
+    df_copy["_cluster"] = "Cluster " + df_copy[cluster_col].astype(str)
+
+    fig = px.scatter(
+        df_copy, x=x_col, y=y_col, color="_cluster",
+        color_discrete_sequence=THEME["accent_colors"],
+        opacity=0.75
+    )
+    _apply_theme(fig, f"🎯 Clusters: {x_col.replace('_', ' ').title()} vs "
+                      f"{y_col.replace('_', ' ').title()}")
+    return fig
+
+
+def trend_forecast_chart(
+    historical_df: pd.DataFrame,
+    forecast_df: pd.DataFrame = None,
+    date_col: str = "date",
+    value_col: str = "value",
+    title: str = "Trend & Forecast"
+) -> go.Figure:
+    """Line chart with historical trend + optional linear forecast overlay."""
+    if date_col not in historical_df.columns or value_col not in historical_df.columns:
+        return _empty_figure(f"📈 {title}", "Required columns are missing.")
+
+    fig = go.Figure()
+
+    # Historical
+    fig.add_trace(go.Scatter(
+        x=historical_df[date_col],
+        y=historical_df[value_col],
+        mode="lines+markers",
+        name="Actual",
+        line=dict(color=THEME["accent_colors"][0], width=2.5),
+        marker=dict(size=5),
+        fill="tozeroy",
+        fillcolor="rgba(0, 212, 255, 0.08)"
+    ))
+
+    # Forecast overlay
+    if forecast_df is not None and not forecast_df.empty:
+        fc = forecast_df[forecast_df.get("type", pd.Series(dtype=str)) == "forecast"]
+        if fc.empty and "type" not in forecast_df.columns:
+            fc = forecast_df
+        if not fc.empty:
+            fig.add_trace(go.Scatter(
+                x=fc[date_col],
+                y=fc[value_col],
+                mode="lines+markers",
+                name="Forecast",
+                line=dict(color=THEME["accent_colors"][3], width=2.5,
+                          dash="dash"),
+                marker=dict(size=7, symbol="diamond")
+            ))
+
+    _apply_theme(fig, f"📈 {title}")
+    fig.update_xaxes(title="Date")
+    fig.update_yaxes(title=value_col.replace("_", " ").title())
+    return fig
+
+
+def auto_generate_charts(df: pd.DataFrame, chart_specs: list,
+                         max_charts: int = 12) -> list:
     """
     Generate all recommended charts for a dataset.
     Returns list of (title, figure) tuples.
@@ -833,15 +1142,20 @@ def auto_generate_charts(df: pd.DataFrame, chart_specs: list, max_charts: int = 
 
     priority = {
         "line": 0,
-        "bar": 1,
-        "scatter": 2,
-        "histogram": 3,
-        "box": 4,
-        "pie": 5,
+        "stacked_area": 1,
+        "bar": 2,
+        "scatter": 3,
+        "histogram": 4,
+        "heatmap": 5,
+        "funnel": 6,
+        "treemap": 7,
+        "waterfall": 8,
+        "box": 9,
+        "pie": 10,
     }
     ranked_specs = sorted(
         chart_specs,
-        key=lambda s: priority.get(s.get("type", "bar"), 10),
+        key=lambda s: priority.get(s.get("type", "bar"), 99),
     )
 
     for spec in ranked_specs:

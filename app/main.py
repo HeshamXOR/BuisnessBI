@@ -18,6 +18,7 @@ import streamlit as st
 
 from app.pages import data_upload, data_overview, visualizations
 from app.pages import ai_insights, multi_agent, recommendations
+from app.pages import ml_insights
 
 
 # ─── Page Config ───────────────────────────────────────────────────
@@ -163,6 +164,7 @@ with st.sidebar:
         "📤 Data Upload / Load": "data_upload",
         "📋 Data Overview": "data_overview",
         "📊 Visualizations": "visualizations",
+        "🧠 ML Insights": "ml_insights",
         "🤖 AI Insights (LLM)": "ai_insights",
         "🔗 Multi-Agent Analysis": "multi_agent",
         "🎯 Recommendations": "recommendations"
@@ -208,6 +210,8 @@ elif page_key == "data_overview":
     data_overview.render()
 elif page_key == "visualizations":
     visualizations.render()
+elif page_key == "ml_insights":
+    ml_insights.render()
 elif page_key == "ai_insights":
     ai_insights.render()
 elif page_key == "multi_agent":
