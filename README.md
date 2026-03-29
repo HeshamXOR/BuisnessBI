@@ -118,6 +118,48 @@ flowchart TB
 
 ---
 
+## 🧑‍💼 System Use Cases
+
+> _How different roles interact with the platform to extract value_
+
+```mermaid
+flowchart LR
+    %% Actors
+    BU((Business<br/>User))
+    DA((Data<br/>Analyst))
+    AD((Admin /<br/>Developer))
+
+    %% System Boundary
+    subgraph DI ["Decision Intelligence Platform"]
+        direction TB
+        UC1(["📤 Upload & Detect Any CSV"])
+        UC2(["📊 Explore ML & Auto-Charts"])
+        UC3(["🤖 Run Multi-Agent Strategy"])
+        UC4(["💬 Ad-hoc Q&A with Agents"])
+        UC5(["⚙️ Fine-Tune Local LLM"])
+    end
+
+    %% Relationships
+    BU ----> UC1
+    BU ----> UC3
+    BU ----> UC4
+
+    DA ----> UC1
+    DA ----> UC2
+    DA ----> UC3
+
+    AD ----> UC1
+    AD ----> UC5
+
+    %% Styling
+    classDef actor fill:#1b2838,stroke:#38bdf8,stroke-width:2px,color:#fff
+    classDef usecase fill:#1a1d23,stroke:#a78bfa,stroke-width:1px,color:#fff,rx:20
+    class BU,DA,AD actor
+    class UC1,UC2,UC3,UC4,UC5 usecase
+```
+
+---
+
 ## 🤖 The Agent Team
 
 > _Each agent is a specialized AI analyst with domain expertise_
@@ -616,8 +658,6 @@ streamlit run app/main.py
 ---
 
 <div align="center">
-
-### Built with ❤️ as a DEPI Graduation Project
 
 **Local AI · Multi-Agent Systems · Business Intelligence · Machine Learning**
 
