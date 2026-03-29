@@ -1,0 +1,52 @@
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Ignore user-home dotfiles/directories at repository root
+.*
+!.gitignore
+!.env.example
+!.streamlit/
+!.streamlit/config.toml
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# OS / editor files
+.DS_Store
+.vscode/
+.idea/
+
+# Logs and temp files
+*.log
+*.tmp
+
+# Local runtime / output artifacts
+results
+results/
+analysis_report.md
+
+# Downloaded or generated datasets (keep generator script only)
+data/*
+!data/generate_datasets.py
+
+# Fine-tuning datasets and model artifacts (downloaded/generated at runtime)
+finetune/data/
+finetune/output/
+finetune/__pycache__/
+
+# Unsloth compiled cache and other heavy local caches
+unsloth_compiled_cache/
+
+# Streamlit and tool caches
+.streamlit/secrets.toml
+.cache/
