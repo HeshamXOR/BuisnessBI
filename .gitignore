@@ -15,8 +15,6 @@ env/
 .*
 !.gitignore
 !.env.example
-!.streamlit/
-!.streamlit/config.toml
 
 # Notebook checkpoints
 .ipynb_checkpoints/
@@ -47,6 +45,6 @@ finetune/__pycache__/
 # Unsloth compiled cache and other heavy local caches
 unsloth_compiled_cache/
 
-# Streamlit and tool caches
+# Tool caches
 .streamlit/secrets.toml
 .cache/

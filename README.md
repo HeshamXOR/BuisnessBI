@@ -5,7 +5,7 @@
 ### _Where AI Agents Collaborate to Turn Raw Data into Strategic Decisions_
 
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.29-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io)
+[![Dash](https://img.shields.io/badge/Dash-4.1-0A0A0A?style=for-the-badge&logo=plotly&logoColor=white)](https://dash.plotly.com)
 [![Ollama](https://img.shields.io/badge/Ollama-Local_LLM-000000?style=for-the-badge&logo=ollama&logoColor=white)](https://ollama.com)
 [![Phi-3](https://img.shields.io/badge/Phi--3_Mini-3.8B-00BCF2?style=for-the-badge&logo=microsoft&logoColor=white)](https://huggingface.co/microsoft/Phi-3-mini-4k-instruct)
 [![Plotly](https://img.shields.io/badge/Plotly-Interactive_Charts-3F4F75?style=for-the-badge&logo=plotly&logoColor=white)](https://plotly.com)
@@ -104,7 +104,7 @@ flowchart TB
     subgraph OUTPUT ["📊 Presentation"]
         D --> E["📋 Strategic Report"]
         B4 --> F["📊 Auto-Charts<br/>(11 types)"]
-        E --> UI["🖥️ Streamlit Dashboard"]
+        E --> UI["🖥️ Dash Dashboard"]
         F --> UI
     end
 
@@ -320,10 +320,15 @@ flowchart TB
 ## 🗂️ Repository Layout
 
 ```text
-📁 DEPI_Graduation_Project/
+📁 BuisnessBI/
 │
-├── 🖥️  app/                          # Streamlit application
-│   ├── main.py                       #   ↳ Entry point + navigation + theming
+├── 🖥️  app/                          # Dash application
+│   ├── main.py                       #   ↳ Dash entry point wrapper
+│   ├── run.py                        #   ↳ Dash dev server launcher
+│   ├── callbacks.py                  #   ↳ Page routing + shared callbacks
+│   ├── layout.py                     #   ↳ App shell and navigation layout
+│   ├── state.py                      #   ↳ Shared in-memory app state
+│   ├── assets/style.css              #   ↳ Global Dash styling
 │   └── pages/
 │       ├── data_upload.py            #   ↳ CSV upload with delimiter/encoding
 │       ├── data_overview.py          #   ↳ Schema, dtypes, correlations, quality
@@ -361,7 +366,7 @@ flowchart TB
 ├── 🎨  components/                   # UI components
 │   ├── charts.py                     #   ↳ 11 auto-chart types + ML charts
 │   ├── theme.py                      #   ↳ Dark theme configuration
-│   └── ui_elements.py                #   ↳ Reusable Streamlit widgets
+│   └── ui_elements.py                #   ↳ Optional legacy Streamlit widgets
 │
 ├── 📦  data/                         # Dataset generation
 │   └── generate_datasets.py          #   ↳ 4 realistic synthetic datasets
@@ -433,10 +438,10 @@ python data/generate_datasets.py
 ### 5️⃣ Launch the Dashboard
 
 ```bash
-streamlit run app/main.py
+/usr/bin/python -m app.main
 ```
 
-> Open **http://localhost:8501** — you're ready to go! 🎉
+> Open **http://localhost:8050** — you're ready to go! 🎉
 
 ---
 
@@ -502,7 +507,7 @@ The full pipeline can also run in `main.ipynb`:
 3. Register business-analyst in Ollama
 4. Load/generate datasets
 5. Run individual agents + orchestration
-6. Launch Streamlit dashboard
+6. Launch Dash dashboard
 ```
 
 ---
@@ -512,7 +517,7 @@ The full pipeline can also run in `main.ipynb`:
 ```mermaid
 graph TB
     subgraph FRONTEND ["🖥️ Frontend"]
-        ST["Streamlit 1.29"]
+        ST["Dash 4.1"]
         PL["Plotly 5.18+"]
     end
 
@@ -547,7 +552,7 @@ graph TB
     PD --> PL
     NP --> PD
 
-    style FRONTEND fill:#0d1b2a,stroke:#ff4b4b,color:#e0f7ff
+    style FRONTEND fill:#0d1b2a,stroke:#3f4f75,color:#e0f7ff
     style AI fill:#1a1d23,stroke:#ffe66d,color:#e0f7ff
     style ML_STACK fill:#1a1d23,stroke:#4ecdc4,color:#e0f7ff
     style DATA fill:#0d1b2a,stroke:#38bdf8,color:#e0f7ff
@@ -636,8 +641,8 @@ python data/generate_datasets.py    # Generate demo data
 
 ```bash
 # Clone the repo
-git clone https://github.com/HeshamXOR/DEPI_Graduation_Project.git
-cd DEPI_Graduation_Project
+git clone https://github.com/HeshamXOR/BuisnessBI.git
+cd BuisnessBI
 
 # Set up environment
 pip install -r requirements.txt
@@ -645,7 +650,7 @@ cp .env.example .env
 
 # Generate data + launch
 python data/generate_datasets.py
-streamlit run app/main.py
+/usr/bin/python -m app.main
 ```
 
 ### Design Principles
