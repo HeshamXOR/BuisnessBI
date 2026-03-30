@@ -39,8 +39,8 @@ st.markdown("""
         --bg-panel: #121A2B;
         --bg-panel-2: #1A2336;
         --text-main: #F8FAFC;
-        --text-soft: #D1DAE6;
-        --text-muted: #A9B8CC;
+        --text-soft: #F8FAFC;
+        --text-muted: #F8FAFC;
         --accent: #22D3EE;
         --accent-2: #38BDF8;
         --border: #2D3A52;
@@ -69,7 +69,7 @@ st.markdown("""
         font-size: 1.02rem;
     }
     .stCaption {
-        color: var(--text-soft) !important;
+        color: var(--text-main) !important;
         font-size: 0.95rem !important;
     }
 
@@ -151,7 +151,7 @@ with st.sidebar:
     <div style="text-align: center; padding: 20px 0;">
         <h1 style="font-size: 2rem;">🧠</h1>
         <h3 class="gradient-text">AI Decision Intelligence</h3>
-        <p style="color: #8B949E; font-size: 0.85rem;">
+        <p style="color: #F8FAFC; font-size: 0.85rem;">
             Multi-Agent Analysis Platform
         </p>
     </div>
