@@ -18,83 +18,253 @@ from typing import Dict, List, Any, Optional, Tuple
 COLUMN_PATTERNS = {
     "sales": {
         "strong": ["revenue", "sales", "order", "invoice", "transaction"],
-        "medium": ["product", "quantity", "units_sold", "discount", "profit", "cost",
-                    "unit_price", "total_price", "order_id", "sku"],
-        "weak": ["region", "store", "channel", "category"]
+        "medium": [
+            "product",
+            "quantity",
+            "units_sold",
+            "discount",
+            "profit",
+            "cost",
+            "unit_price",
+            "total_price",
+            "order_id",
+            "sku",
+        ],
+        "weak": ["region", "store", "channel", "category"],
     },
     "marketing": {
-        "strong": ["campaign", "ctr", "impression", "click", "conversion", "ad_spend",
-                    "marketing", "cpc", "cpm"],
-        "medium": ["channel", "roi", "reach", "engagement", "bounce_rate", "spend",
-                    "ad_group", "keyword"],
-        "weak": ["views", "likes", "shares", "audience"]
+        "strong": [
+            "campaign",
+            "ctr",
+            "impression",
+            "click",
+            "conversion",
+            "ad_spend",
+            "marketing",
+            "cpc",
+            "cpm",
+        ],
+        "medium": [
+            "channel",
+            "roi",
+            "reach",
+            "engagement",
+            "bounce_rate",
+            "spend",
+            "ad_group",
+            "keyword",
+        ],
+        "weak": ["views", "likes", "shares", "audience"],
     },
     "customers": {
-        "strong": ["customer", "churn", "lifetime_value", "ltv", "satisfaction",
-                    "nps", "subscriber", "member"],
-        "medium": ["segment", "retention", "purchase_frequency", "loyalty",
-                    "account_age", "support_ticket", "engagement_score"],
-        "weak": ["age", "gender", "location", "signup"]
+        "strong": [
+            "customer",
+            "churn",
+            "lifetime_value",
+            "ltv",
+            "satisfaction",
+            "nps",
+            "subscriber",
+            "member",
+        ],
+        "medium": [
+            "segment",
+            "retention",
+            "purchase_frequency",
+            "loyalty",
+            "account_age",
+            "support_ticket",
+            "engagement_score",
+        ],
+        "weak": ["age", "gender", "location", "signup"],
     },
     "survey": {
-        "strong": ["nps", "net_promoter", "csat", "survey", "response", "rating",
-                    "feedback", "satisfaction", "recommend"],
-        "medium": ["sentiment", "comment", "score", "promoter", "detractor",
-                    "touchpoint", "experience", "resolution"],
-        "weak": ["channel", "region", "product", "team", "agent"]
+        "strong": [
+            "nps",
+            "net_promoter",
+            "csat",
+            "survey",
+            "response",
+            "rating",
+            "feedback",
+            "satisfaction",
+            "recommend",
+        ],
+        "medium": [
+            "sentiment",
+            "comment",
+            "score",
+            "promoter",
+            "detractor",
+            "touchpoint",
+            "experience",
+            "resolution",
+        ],
+        "weak": ["channel", "region", "product", "team", "agent"],
     },
     "financial": {
-        "strong": ["balance", "debit", "credit", "account", "ledger", "journal",
-                    "asset", "liability", "equity", "dividend"],
-        "medium": ["interest", "tax", "expense", "income", "budget", "forecast",
-                    "payable", "receivable", "cash_flow"],
-        "weak": ["amount", "fiscal", "quarter", "annual"]
+        "strong": [
+            "balance",
+            "debit",
+            "credit",
+            "account",
+            "ledger",
+            "journal",
+            "asset",
+            "liability",
+            "equity",
+            "dividend",
+        ],
+        "medium": [
+            "interest",
+            "tax",
+            "expense",
+            "income",
+            "budget",
+            "forecast",
+            "payable",
+            "receivable",
+            "cash_flow",
+        ],
+        "weak": ["amount", "fiscal", "quarter", "annual"],
     },
     "hr": {
-        "strong": ["employee", "salary", "department", "hire_date", "job_title",
-                    "payroll", "leave", "attendance"],
-        "medium": ["performance", "manager", "position", "bonus", "overtime",
-                    "headcount", "turnover", "tenure"],
-        "weak": ["team", "office", "role", "skills"]
+        "strong": [
+            "employee",
+            "salary",
+            "department",
+            "hire_date",
+            "job_title",
+            "payroll",
+            "leave",
+            "attendance",
+        ],
+        "medium": [
+            "performance",
+            "manager",
+            "position",
+            "bonus",
+            "overtime",
+            "headcount",
+            "turnover",
+            "tenure",
+        ],
+        "weak": ["team", "office", "role", "skills"],
     },
     "inventory": {
-        "strong": ["stock", "warehouse", "sku", "inventory", "reorder",
-                    "supplier", "procurement"],
-        "medium": ["quantity", "unit_cost", "shelf_life", "batch", "bin",
-                    "backorder", "lead_time"],
-        "weak": ["item", "weight", "dimension", "barcode"]
+        "strong": [
+            "stock",
+            "warehouse",
+            "sku",
+            "inventory",
+            "reorder",
+            "supplier",
+            "procurement",
+        ],
+        "medium": [
+            "quantity",
+            "unit_cost",
+            "shelf_life",
+            "batch",
+            "bin",
+            "backorder",
+            "lead_time",
+        ],
+        "weak": ["item", "weight", "dimension", "barcode"],
     },
     "tech": {
-        "strong": ["repo", "stars", "forks", "commit", "pull_request",
-                    "issue", "contributor", "code_quality"],
-        "medium": ["language", "framework", "ci_cd", "documentation",
-                    "test_coverage", "bug", "feature"],
-        "weak": ["version", "release", "dependency", "license"]
-    }
+        "strong": [
+            "repo",
+            "stars",
+            "forks",
+            "commit",
+            "pull_request",
+            "issue",
+            "contributor",
+            "code_quality",
+        ],
+        "medium": [
+            "language",
+            "framework",
+            "ci_cd",
+            "documentation",
+            "test_coverage",
+            "bug",
+            "feature",
+        ],
+        "weak": ["version", "release", "dependency", "license"],
+    },
 }
 
 # Semantic date column detection
 DATE_PATTERNS = [
-    "date", "time", "timestamp", "created", "updated", "modified",
-    "start", "end", "period", "month", "year", "day", "week", "quarter"
+    "date",
+    "time",
+    "timestamp",
+    "created",
+    "updated",
+    "modified",
+    "start",
+    "end",
+    "period",
+    "month",
+    "year",
+    "day",
+    "week",
+    "quarter",
 ]
 
 # Monetary column detection
 MONETARY_PATTERNS = [
-    "revenue", "cost", "price", "spend", "budget", "profit", "income",
-    "expense", "salary", "amount", "total", "fee", "payment", "balance",
-    "value", "ltv", "lifetime_value", "roi", "cpc", "cpm"
+    "revenue",
+    "cost",
+    "price",
+    "spend",
+    "budget",
+    "profit",
+    "income",
+    "expense",
+    "salary",
+    "amount",
+    "total",
+    "fee",
+    "payment",
+    "balance",
+    "value",
+    "ltv",
+    "lifetime_value",
+    "roi",
+    "cpc",
+    "cpm",
 ]
 
 SURVEY_SCORE_PATTERNS = [
-    "nps", "nps_score", "net_promoter", "csat", "satisfaction", "rating", "score"
+    "nps",
+    "nps_score",
+    "net_promoter",
+    "csat",
+    "satisfaction",
+    "rating",
+    "score",
 ]
 
 # Rate / percentage column detection
 RATE_PATTERNS = [
-    "rate", "ratio", "pct", "percent", "proportion", "margin",
-    "ctr", "conversion", "churn", "retention", "growth", "yield",
-    "bounce", "attrition", "utilization"
+    "rate",
+    "ratio",
+    "pct",
+    "percent",
+    "proportion",
+    "margin",
+    "ctr",
+    "conversion",
+    "churn",
+    "retention",
+    "growth",
+    "yield",
+    "bounce",
+    "attrition",
+    "utilization",
 ]
 
 # Funnel stage patterns (ordered high→low)
@@ -180,7 +350,25 @@ class DatasetDetector:
                 continue
 
             # Numeric detection (exclude boolean columns — they break max()-min())
-            if pd.api.types.is_numeric_dtype(self.df[col]) and not pd.api.types.is_bool_dtype(self.df[col]):
+            if pd.api.types.is_numeric_dtype(
+                self.df[col]
+            ) and not pd.api.types.is_bool_dtype(self.df[col]):
+                series_clean = self.df[col].dropna()
+                if series_clean.empty:
+                    self._numeric_columns.append(col)
+                    self._column_roles[col] = "numeric"
+                    continue
+                    
+                n_unique = series_clean.nunique()
+                n_total = len(series_clean)
+                
+                # Entropy Analysis: Guard against ID / sequential Index columns.
+                is_pure_integer = pd.api.types.is_integer_dtype(self.df[col])
+                if is_pure_integer and n_unique == n_total and ("id" in col_lower or "index" in col_lower or n_total > 50):
+                    self._categorical_columns.append(col)
+                    self._column_roles[col] = "categorical"
+                    continue
+                    
                 self._numeric_columns.append(col)
 
                 # Check if monetary
@@ -205,14 +393,25 @@ class DatasetDetector:
             return False
 
         explicit_time_name = any(
-            p in col_lower for p in ["date", "timestamp", "datetime", "created", "updated", "epoch", "unix"]
+            p in col_lower
+            for p in [
+                "date",
+                "timestamp",
+                "datetime",
+                "created",
+                "updated",
+                "epoch",
+                "unix",
+            ]
         )
 
         if pd.api.types.is_datetime64_any_dtype(self.df[col]):
             return True
 
         # Numeric columns are often IDs/durations; only treat as date if explicitly named and plausible.
-        if pd.api.types.is_numeric_dtype(self.df[col]) and not pd.api.types.is_bool_dtype(self.df[col]):
+        if pd.api.types.is_numeric_dtype(
+            self.df[col]
+        ) and not pd.api.types.is_bool_dtype(self.df[col]):
             if not explicit_time_name:
                 return False
             sample_num = pd.to_numeric(series.head(50), errors="coerce").dropna()
@@ -237,7 +436,9 @@ class DatasetDetector:
             sample = series.head(40)
             if len(sample) > 0:
                 try:
-                    parsed = pd.to_datetime(sample, format="mixed", dayfirst=False, errors="coerce")
+                    parsed = pd.to_datetime(
+                        sample, format="mixed", dayfirst=False, errors="coerce"
+                    )
                     parsed_valid = parsed.dropna()
                     parse_ratio = parsed_valid.shape[0] / max(1, len(sample))
 
@@ -246,13 +447,19 @@ class DatasetDetector:
                         return True
 
                     # Only allow weaker parse if name strongly suggests datetime semantics.
-                    if explicit_time_name and parse_ratio >= 0.6 and parsed_valid.nunique() >= 3:
+                    if (
+                        explicit_time_name
+                        and parse_ratio >= 0.6
+                        and parsed_valid.nunique() >= 3
+                    ):
                         return True
                 except (ValueError, TypeError):
                     pass
 
         # Weak name-only date detection for non-numeric columns.
-        if any(p in col_lower for p in DATE_PATTERNS) and not pd.api.types.is_numeric_dtype(self.df[col]):
+        if any(
+            p in col_lower for p in DATE_PATTERNS
+        ) and not pd.api.types.is_numeric_dtype(self.df[col]):
             return True
 
         return False
@@ -367,6 +574,86 @@ class DatasetDetector:
         """Get the most likely primary date column."""
         return self._date_columns[0] if self._date_columns else None
 
+    def get_top_metrics(self, limit: int = 3) -> List[str]:
+        """Return the strongest numeric metrics to prioritize in charts and AI summaries."""
+        ranked = []
+        seen = set()
+
+        for col in self._monetary_columns:
+            if col not in seen:
+                ranked.append(col)
+                seen.add(col)
+
+        scored_numeric = []
+        for col in self._numeric_columns:
+            if col in seen:
+                continue
+            vals = pd.to_numeric(self.df[col], errors="coerce").dropna()
+            if len(vals) < 5 or vals.nunique() < 2:
+                continue
+            score = float(vals.std()) if vals.nunique() > 1 else 0.0
+            scored_numeric.append((col, score))
+
+        scored_numeric.sort(key=lambda item: item[1], reverse=True)
+        for col, _ in scored_numeric:
+            if col not in seen:
+                ranked.append(col)
+                seen.add(col)
+            if len(ranked) >= limit:
+                break
+
+        return ranked[:limit]
+
+    def _detect_time_granularity(self, col: str) -> str:
+        """Infer a reasonable resampling frequency for a date column."""
+        if not col or col not in self.df.columns:
+            return "ME"
+
+        parsed = pd.to_datetime(self.df[col], errors="coerce").dropna().sort_values()
+        if len(parsed) < 3:
+            return "ME"
+
+        diffs = parsed.diff().dropna()
+        if diffs.empty:
+            return "ME"
+
+        median_days = float(diffs.dt.total_seconds().median() / 86400)
+        if median_days <= 1.5:
+            return "D"
+        if median_days <= 8:
+            return "W"
+        if median_days <= 40:
+            return "ME"
+        if median_days <= 110:
+            return "QE"
+        return "YE"
+
+    def _get_correlated_pairs(
+        self, min_corr: float = 0.3, limit: int = 3
+    ) -> List[Tuple[str, str, float]]:
+        """Return the strongest numeric column pairs by absolute correlation."""
+        usable_numeric = []
+        for col in self._numeric_columns:
+            vals = pd.to_numeric(self.df[col], errors="coerce")
+            if vals.dropna().nunique() >= 3:
+                usable_numeric.append(col)
+
+        if len(usable_numeric) < 2:
+            return []
+
+        corr = (
+            self.df[usable_numeric].apply(pd.to_numeric, errors="coerce").corr().abs()
+        )
+        pairs: List[Tuple[str, str, float]] = []
+        for i, left in enumerate(usable_numeric):
+            for right in usable_numeric[i + 1 :]:
+                score = corr.loc[left, right]
+                if pd.notna(score) and float(score) >= min_corr:
+                    pairs.append((left, right, float(score)))
+
+        pairs.sort(key=lambda item: item[2], reverse=True)
+        return pairs[:limit]
+
     def _find_column_by_patterns(
         self, patterns: List[str], within: Optional[List[str]] = None
     ) -> Optional[str]:
@@ -387,13 +674,15 @@ class DatasetDetector:
             "total_records": len(self.df),
             "total_columns": len(self.df.columns),
             "detected_type": self.detected_type,
-            "detection_confidence": f"{self.confidence:.0%}"
+            "detection_confidence": f"{self.confidence:.0%}",
         }
 
         missing_cells = int(self.df.isna().sum().sum())
         total_cells = max(1, int(self.df.shape[0] * self.df.shape[1]))
         kpis["missing_cells"] = missing_cells
-        kpis["data_completeness_pct"] = round((1 - (missing_cells / total_cells)) * 100, 2)
+        kpis["data_completeness_pct"] = round(
+            (1 - (missing_cells / total_cells)) * 100, 2
+        )
 
         # Monetary KPIs
         for col in self._monetary_columns[:4]:
@@ -403,8 +692,9 @@ class DatasetDetector:
             kpis[f"median_{col}"] = round(self.df[col].median(), 2)
 
         # Numeric KPIs (non-monetary)
-        non_monetary_numeric = [c for c in self._numeric_columns
-                                if c not in self._monetary_columns]
+        non_monetary_numeric = [
+            c for c in self._numeric_columns if c not in self._monetary_columns
+        ]
         for col in non_monetary_numeric[:4]:
             kpis[f"avg_{col}"] = round(self.df[col].mean(), 2)
             kpis[f"max_{col}"] = round(self.df[col].max(), 2)
@@ -439,13 +729,17 @@ class DatasetDetector:
                 elif ratings.max() <= 10:
                     positive_pct = round((ratings >= 8).mean() * 100, 2)
                 else:
-                    positive_pct = round((ratings >= ratings.quantile(0.75)).mean() * 100, 2)
+                    positive_pct = round(
+                        (ratings >= ratings.quantile(0.75)).mean() * 100, 2
+                    )
                 kpis[f"positive_{rating_col}_pct"] = positive_pct
 
         # Categorical KPIs
         for col in self._categorical_columns[:3]:
             kpis[f"unique_{col}"] = int(self.df[col].nunique())
-            top_val = self.df[col].mode().iloc[0] if len(self.df[col].mode()) > 0 else "N/A"
+            top_val = (
+                self.df[col].mode().iloc[0] if len(self.df[col].mode()) > 0 else "N/A"
+            )
             kpis[f"top_{col}"] = str(top_val)
 
         # Date range
@@ -473,6 +767,10 @@ class DatasetDetector:
         primary_category = self.get_primary_category()
         primary_date = self.get_primary_date()
         nps_col = self._find_column_by_patterns(["nps", "nps_score", "net_promoter"])
+        top_metrics = self.get_top_metrics(limit=3)
+        time_freq = (
+            self._detect_time_granularity(primary_date) if primary_date else "ME"
+        )
 
         # ── helpers ──────────────────────────────────────────────
         def _enough_num(col, min_pts=5, min_uniq=2):
@@ -497,9 +795,20 @@ class DatasetDetector:
             return col.replace("_", " ").title() if col else ""
 
         def add(chart):
-            sig = (chart.get("type"), chart.get("x"), chart.get("y"))
+            sig = (
+                chart.get("type"),
+                chart.get("x"),
+                chart.get("y"),
+                tuple(chart.get("columns", []) or []),
+            )
             for c in charts:
-                if (c.get("type"), c.get("x"), c.get("y")) == sig:
+                existing = (
+                    c.get("type"),
+                    c.get("x"),
+                    c.get("y"),
+                    tuple(c.get("columns", []) or []),
+                )
+                if existing == sig:
                     return
             charts.append(chart)
 
@@ -512,19 +821,27 @@ class DatasetDetector:
         num_cands.sort(key=lambda x: x[1], reverse=True)
 
         # Usable categories (2-50 unique values)
-        good_cats = [c for c in self._categorical_columns
-                     if 2 <= self.df[c].nunique() <= 50]
+        good_cats = [
+            c for c in self._categorical_columns if 2 <= self.df[c].nunique() <= 50
+        ]
 
-        # Metrics to iterate: monetary first, then top numeric
-        iter_metrics = list(dict.fromkeys(
-            self._monetary_columns[:3]
-            + [c for c, _ in num_cands[:4] if c not in self._monetary_columns]
-        ))
+        # Metrics to iterate: use ranked helper first, then any remaining strong numeric columns.
+        iter_metrics = list(
+            dict.fromkeys(
+                top_metrics + [c for c, _ in num_cands[:4] if c not in top_metrics]
+            )
+        )
 
         # ── 1. NPS / survey histogram ────────────────────────────
         if _enough_num(nps_col, 6, 3):
-            add({"type": "histogram", "x": nps_col, "y": None,
-                 "title": f"Distribution of {_label(nps_col)}"})
+            add(
+                {
+                    "type": "histogram",
+                    "x": nps_col,
+                    "y": None,
+                    "title": f"Distribution of {_label(nps_col)}",
+                }
+            )
 
         # ── 2. Time-series lines (multi-metric) ─────────────────
         for date_col in self._date_columns[:2]:
@@ -532,85 +849,154 @@ class DatasetDetector:
                 continue
             for metric in iter_metrics[:3]:
                 if _enough_num(metric):
-                    add({"type": "line", "x": date_col, "y": metric,
-                         "title": f"{_label(metric)} Over Time"})
+                    add(
+                        {
+                            "type": "line",
+                            "x": date_col,
+                            "y": metric,
+                            "freq": time_freq,
+                            "title": f"{_label(metric)} Over Time",
+                        }
+                    )
 
         # ── 3. Bar charts (multi-category × multi-metric) ───────
         for cat in good_cats[:3]:
             for metric in iter_metrics[:2]:
                 if _enough_num(metric):
-                    add({"type": "bar", "x": cat, "y": metric,
-                         "title": f"{_label(metric)} by {_label(cat)}"})
+                    add(
+                        {
+                            "type": "bar",
+                            "x": cat,
+                            "y": metric,
+                            "title": f"{_label(metric)} by {_label(cat)}",
+                        }
+                    )
 
         # ── 4. Stacked area (composition over time) ─────────────
         if primary_date and _enough_date(primary_date) and good_cats:
             best_cat = good_cats[0]
             metric_for_stack = iter_metrics[0] if iter_metrics else None
             if metric_for_stack and _enough_num(metric_for_stack):
-                add({"type": "stacked_area", "x": primary_date,
-                     "y": metric_for_stack, "color": best_cat,
-                     "title": f"{_label(metric_for_stack)} Composition Over Time"})
+                add(
+                    {
+                        "type": "stacked_area",
+                        "x": primary_date,
+                        "y": metric_for_stack,
+                        "color": best_cat,
+                        "title": f"{_label(metric_for_stack)} Composition Over Time",
+                    }
+                )
 
         # ── 5. Distribution histograms ───────────────────────────
         for metric in iter_metrics[:2]:
             if _enough_num(metric, 8, 3):
-                add({"type": "histogram", "x": metric, "y": None,
-                     "title": f"Distribution of {_label(metric)}"})
+                add(
+                    {
+                        "type": "histogram",
+                        "x": metric,
+                        "y": None,
+                        "title": f"Distribution of {_label(metric)}",
+                    }
+                )
 
         # ── 6. Scatter plots (top numeric pairs) ────────────────
-        if len(num_cands) >= 2:
-            pairs_added = 0
-            for i in range(len(num_cands)):
-                for j in range(i + 1, len(num_cands)):
-                    if pairs_added >= 2:
-                        break
-                    x_c, y_c = num_cands[i][0], num_cands[j][0]
-                    add({"type": "scatter", "x": x_c, "y": y_c,
-                         "title": f"{_label(x_c)} vs {_label(y_c)}"})
-                    pairs_added += 1
-                if pairs_added >= 2:
-                    break
+        corr_pairs = self._get_correlated_pairs(min_corr=0.3, limit=3)
+        if corr_pairs:
+            color_col = (
+                good_cats[0]
+                if good_cats and self.df[good_cats[0]].nunique() <= 20
+                else None
+            )
+            for x_c, y_c, corr_score in corr_pairs:
+                spec = {
+                    "type": "scatter",
+                    "x": x_c,
+                    "y": y_c,
+                    "title": f"{_label(x_c)} vs {_label(y_c)} (corr={corr_score:.2f})",
+                }
+                if color_col:
+                    spec["color"] = color_col
+                add(spec)
+        elif len(num_cands) >= 2:
+            x_c, y_c = num_cands[0][0], num_cands[1][0]
+            add(
+                {
+                    "type": "scatter",
+                    "x": x_c,
+                    "y": y_c,
+                    "title": f"{_label(x_c)} vs {_label(y_c)}",
+                }
+            )
 
         # ── 7. Pie chart ─────────────────────────────────────────
         if _enough_cat(primary_category):
-            add({"type": "pie", "x": primary_category,
-                 "y": primary_metric or "count",
-                 "title": f"{_label(primary_category)} Distribution"})
+            add(
+                {
+                    "type": "pie",
+                    "x": primary_category,
+                    "y": primary_metric or "count",
+                    "title": f"{_label(primary_category)} Distribution",
+                }
+            )
 
         # ── 8. Box plot (numeric by category) ────────────────────
         if good_cats and num_cands:
-            add({"type": "box", "x": good_cats[0], "y": num_cands[0][0],
-                 "title": f"{_label(num_cands[0][0])} by {_label(good_cats[0])}"})
+            add(
+                {
+                    "type": "box",
+                    "x": good_cats[0],
+                    "y": num_cands[0][0],
+                    "title": f"{_label(num_cands[0][0])} by {_label(good_cats[0])}",
+                }
+            )
 
         # ── 9. Correlation heatmap (3+ numeric columns) ─────────
         if len(self._numeric_columns) >= 3:
-            add({"type": "heatmap", "x": None, "y": None,
-                 "columns": self._numeric_columns[:12],
-                 "title": "Correlation Between Numeric Variables"})
+            add(
+                {
+                    "type": "heatmap",
+                    "x": None,
+                    "y": None,
+                    "columns": self._numeric_columns[:12],
+                    "title": "Correlation Between Numeric Variables",
+                }
+            )
 
         # ── 10. Treemap (hierarchical categories) ────────────────
         if len(good_cats) >= 2 and iter_metrics:
-            add({"type": "treemap",
-                 "path": good_cats[:2], "y": iter_metrics[0],
-                 "title": f"{_label(iter_metrics[0])} by {_label(good_cats[0])} → {_label(good_cats[1])}"})
+            add(
+                {
+                    "type": "treemap",
+                    "path": good_cats[:2],
+                    "y": iter_metrics[0],
+                    "title": f"{_label(iter_metrics[0])} by {_label(good_cats[0])} → {_label(good_cats[1])}",
+                }
+            )
 
         # ── 11. Funnel chart (marketing conversion) ──────────────
         funnel_cols = []
         for stage_patterns in FUNNEL_PATTERNS:
-            found = self._find_column_by_patterns(stage_patterns,
-                                                   within=self._numeric_columns)
+            found = self._find_column_by_patterns(
+                stage_patterns, within=self._numeric_columns
+            )
             if found:
                 funnel_cols.append(found)
         if len(funnel_cols) >= 2:
-            add({"type": "funnel", "columns": funnel_cols,
-                 "title": "Conversion Funnel"})
+            add(
+                {"type": "funnel", "columns": funnel_cols, "title": "Conversion Funnel"}
+            )
 
         # ── 12. Waterfall (financial) ────────────────────────────
         if self.detected_type == "financial" and iter_metrics:
             if good_cats:
-                add({"type": "waterfall", "x": good_cats[0],
-                     "y": iter_metrics[0],
-                     "title": f"{_label(iter_metrics[0])} Waterfall"})
+                add(
+                    {
+                        "type": "waterfall",
+                        "x": good_cats[0],
+                        "y": iter_metrics[0],
+                        "title": f"{_label(iter_metrics[0])} Waterfall",
+                    }
+                )
 
         return charts
 
@@ -635,13 +1021,20 @@ class DatasetDetector:
         if non_mon:
             lines.append(f"  Numeric columns: {', '.join(non_mon)}")
         if self._categorical_columns:
-            lines.append(f"  Categorical columns: {', '.join(self._categorical_columns)}")
+            lines.append(
+                f"  Categorical columns: {', '.join(self._categorical_columns)}"
+            )
 
         lines.append("")
         lines.append("Key Metrics:")
         kpis = self.compute_auto_kpis()
         for k, v in kpis.items():
-            if k not in ["total_records", "total_columns", "detected_type", "detection_confidence"]:
+            if k not in [
+                "total_records",
+                "total_columns",
+                "detected_type",
+                "detection_confidence",
+            ]:
                 label = k.replace("_", " ").title()
                 if isinstance(v, float) and v > 1000:
                     lines.append(f"  - {label}: {v:,.2f}")
@@ -674,7 +1067,7 @@ class DatasetDetector:
             "primary_metric": self.get_primary_metric(),
             "primary_category": self.get_primary_category(),
             "primary_date": self.get_primary_date(),
-            "recommended_charts": len(self.get_chart_recommendations())
+            "recommended_charts": len(self.get_chart_recommendations()),
         }
 
 
@@ -683,6 +1076,8 @@ def detect_dataset(df: pd.DataFrame, name: str = "dataset") -> DatasetDetector:
     return DatasetDetector(df, name)
 
 
-def detect_all_datasets(datasets: Dict[str, pd.DataFrame]) -> Dict[str, DatasetDetector]:
+def detect_all_datasets(
+    datasets: Dict[str, pd.DataFrame],
+) -> Dict[str, DatasetDetector]:
     """Detect types for all datasets in a dictionary."""
     return {name: DatasetDetector(df, name) for name, df in datasets.items()}

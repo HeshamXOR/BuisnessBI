@@ -16,7 +16,11 @@ from llm.llm_client import LLMClient
 from llm.prompts import PromptTemplates
 from llm.response_parser import ResponseParser
 from utils.analysis import compute_kpis, get_summary_statistics
-from utils.helpers import kpis_to_string, dataframe_to_summary_string
+from utils.helpers import (
+    compact_dataframe_profile,
+    dataframe_to_summary_string,
+    kpis_to_string,
+)
 
 
 class BaseAgent(ABC):
@@ -30,13 +34,7 @@ class BaseAgent(ABC):
     4. Produces a structured report
     """
 
-    def __init__(
-        self,
-        name: str,
-        role: str,
-        llm_client: LLMClient,
-        dataset_type: str
-    ):
+    def __init__(self, name: str, role: str, llm_client: LLMClient, dataset_type: str):
         """
         Initialize the base agent.
 
@@ -97,6 +95,8 @@ class BaseAgent(ABC):
 
         kpis_str = kpis_to_string(kpis)
         data_summary = dataframe_to_summary_string(df, max_rows=8)
+        compact_profile = compact_dataframe_profile(df)
+        data_summary = f"{compact_profile}\n\n{data_summary}"
 
         return kpis, kpis_str, data_summary
 
@@ -113,10 +113,24 @@ class BaseAgent(ABC):
         start_time = time.time()
 
         report = self.llm_client.generate(
-            prompt=prompt,
-            system_prompt=PromptTemplates.SYSTEM_ANALYST,
-            temperature=0.3
+            prompt=prompt, system_prompt=PromptTemplates.SYSTEM_ANALYST, temperature=0.3
         )
+
+        report = self.parser.clean_response(report)
+        if self.parser.is_low_quality_response(report):
+            repair_prompt = PromptTemplates.repair_insight(
+                data_summary=prompt,
+                question="Rewrite this analyst report to remove unsupported claims and improve clarity.",
+                previous_output=report,
+            )
+            repaired = self.llm_client.generate(
+                prompt=repair_prompt,
+                system_prompt=PromptTemplates.SYSTEM_ANALYST_STRICT,
+                temperature=0.1,
+            )
+            cleaned_repaired = self.parser.clean_response(repaired)
+            if not self.parser.is_low_quality_response(cleaned_repaired):
+                report = cleaned_repaired
 
         self._execution_time = round(time.time() - start_time, 2)
         self._report = report
@@ -142,7 +156,7 @@ class BaseAgent(ABC):
             "execution_time_seconds": self._execution_time,
             "has_report": self._report is not None,
             "llm_model": self.llm_client.model,
-            **self._metadata
+            **self._metadata,
         }
 
     def __repr__(self) -> str:

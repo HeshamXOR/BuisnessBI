@@ -1,12 +1,12 @@
-# Core
-# ThunderCompute images often ship with blinker==1.4. Streamlit 1.29.x
-# remains compatible with that base package, while newer releases require
-# blinker>=1.5 and can fail during installation.
-streamlit==1.29.0
+# Core Dashboard (Dash instead of Streamlit for better Plotly support)
+dash>=2.14.0
+dash-bootstrap-components>=1.4.0
 pandas>=2.0.0
 numpy>=1.24.0
 plotly>=5.18.0
 python-dotenv>=1.0.0
+openpyxl>=3.1.0
+statsmodels>=0.14.0
 
 # LLM
 ollama>=0.1.0
@@ -30,22 +30,22 @@ accelerate>=1.2.0,<1.5.0
 bitsandbytes>=0.45.0,<0.46.0
 
 # ┌──────────────────────────────────────────────────────────────────┐
-# │  Unsloth Installation (ThunderCompute RTX A6000)                │
+# │ Unsloth Installation (ThunderCompute RTX A6000)                 │
 # │                                                                  │
-# │  Option 1 — Simple install (auto-detects torch + CUDA):         │
-# │    pip install unsloth                                           │
+# │ Option 1 — Simple install (auto-detects torch + CUDA):          │
+# │ pip install unsloth                                             │
 # │                                                                  │
-# │  Option 2 — Ampere-optimized (A6000/A100/RTX 3090+):           │
-# │    pip install "unsloth[cu128-ampere-torch290] @ \               │
-# │      git+https://github.com/unslothai/unsloth.git"              │
+# │ Option 2 — Ampere-optimized (A6000/A100/RTX 3090+):             │
+# │ pip install "unsloth[cu128-ampere-torch290] @ \                 │
+# │ git+https://github.com/unslothai/unsloth.git                    │
 # │                                                                  │
-# │  Option 3 — Using uv (recommended by Unsloth):                  │
-# │    uv pip install unsloth --torch-backend=auto                   │
+# │ Option 3 — Using uv (recommended by Unsloth):                   │
+# │ uv pip install unsloth --torch-backend=auto                     │
 # │                                                                  │
-# │  If unsloth hangs / has no output, do a clean reinstall:         │
-# │    pip uninstall -y unsloth unsloth_zoo                          │
-# │    pip install --upgrade --force-reinstall --no-cache-dir \      │
-# │      --no-deps unsloth                                          │
-# │    pip install --upgrade --force-reinstall --no-cache-dir \      │
-# │      --no-deps unsloth_zoo                                      │
+# │ If unsloth hangs / has no output, do a clean reinstall:         │
+# │ pip uninstall -y unsloth unsloth_zoo                             │
+# │ pip install --upgrade --force-reinstall --no-cache-dir \        │
+# │ --no-deps unsloth                                                │
+# │ pip install --upgrade --force-reinstall --no-cache-dir \        │
+# │ --no-deps unsloth_zoo                                            │
 # └──────────────────────────────────────────────────────────────────┘

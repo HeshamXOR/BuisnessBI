@@ -1,172 +1,120 @@
-"""
-Recommendations Page
-=====================
-Display final strategic recommendations with priority,
-impact assessment, and action items.
-"""
+"""Dash recommendations page."""
 
 import os
 import sys
-import streamlit as st
 
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from dash import dcc, html
+from dash.dependencies import Input, Output
+import dash_bootstrap_components as dbc
+
+project_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+from app import state
 from llm.llm_client import LLMClient
 from llm.prompts import PromptTemplates
 from llm.response_parser import ResponseParser
-from components.ui_elements import insight_card
-from components.theme import apply_dark_page_style
+from utils.dataset_detector import DatasetDetector
+
+
+def _build_context_from_datasets() -> str:
+    blocks = []
+    for name, df in state.get_datasets().items():
+        try:
+            detector = DatasetDetector(df, name)
+            blocks.append(detector.get_analysis_context())
+        except Exception:
+            sample = df.head(5).to_string(index=False)
+            blocks.append(
+                f"Dataset: {name}\n"
+                f"Shape: {df.shape[0]} rows x {df.shape[1]} columns\n"
+                f"Columns: {', '.join(map(str, df.columns))}\n\n"
+                f"Sample Data:\n{sample}"
+            )
+    return "\n\n---\n\n".join(blocks)
 
 
 def render():
-    """Render the Recommendations page."""
-    apply_dark_page_style()
-    st.markdown("# 🎯 Strategic Recommendations")
-    st.markdown(
-        "AI-generated prioritized action items based on all available analysis. "
-        "Run the multi-agent analysis first for best results."
-    )
-    st.markdown("---")
-
-    # ─── Check for existing analysis ───────────────────────────
-
-    has_multi_agent = "multi_agent_results" in st.session_state
-    has_insights = any(
-        k.startswith("insight_") for k in st.session_state.keys()
-    )
-
-    if not has_multi_agent and not has_insights:
-        st.info(
-            "💡 **Tip**: Run the Multi-Agent Analysis first for comprehensive "
-            "recommendations, or generate individual AI Insights."
+    datasets = state.get_datasets()
+    if not datasets:
+        return html.Div(
+            [
+                html.H2("🎯 Recommendations"),
+                dbc.Alert(
+                    "No datasets loaded yet. Go to Data Upload first.", color="warning"
+                ),
+            ],
+            className="p-3",
         )
 
-    # ─── Display Multi-Agent Recommendations ───────────────────
+    latest = state.get_last_recommendations() or ""
+    existing_multi_agent = state.get_last_multi_agent_result()
+    info = (
+        "Using the latest multi-agent recommendation output."
+        if existing_multi_agent and latest
+        else "No multi-agent recommendation cached yet. Generate one directly from the currently loaded datasets."
+    )
 
-    if has_multi_agent:
-        results = st.session_state["multi_agent_results"]
+    return html.Div(
+        [
+            html.H2("🎯 Recommendations"),
+            html.P(
+                "Generate a concise action plan from the loaded datasets or reuse the latest multi-agent recommendations."
+            ),
+            dbc.Alert(info, color="dark"),
+            dbc.Button(
+                "Generate Recommendations",
+                id="recommendations-run-btn",
+                color="primary",
+                className="mb-3",
+            ),
+            html.Div(id="recommendations-status", className="mb-3"),
+            dbc.Card(
+                dbc.CardBody(dcc.Markdown(id="recommendations-output", children=latest))
+            ),
+        ],
+        className="p-3",
+    )
 
-        st.markdown("### 📋 From Multi-Agent Analysis")
 
-        # Strategic report
-        strategic = results.get("strategic_report")
-        if strategic:
-            with st.expander("🧠 Strategic Synthesis", expanded=True):
-                st.markdown(strategic)
+def register_callbacks(app):
+    @app.callback(
+        [
+            Output("recommendations-status", "children"),
+            Output("recommendations-output", "children"),
+        ],
+        Input("recommendations-run-btn", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def generate_recommendations(n_clicks):
+        try:
+            multi_agent_result = state.get_last_multi_agent_result()
+            if multi_agent_result and multi_agent_result.get("recommendations"):
+                text = multi_agent_result["recommendations"]
+                state.set_last_recommendations(text)
+                return dbc.Alert(
+                    "Showing recommendations from the latest multi-agent analysis run.",
+                    color="success",
+                ), text
 
-        # Recommendations
-        recs = results.get("recommendations")
-        if recs:
-            st.markdown("---")
-            st.markdown("### 🎯 Prioritized Action Items")
-            st.markdown(recs)
-
-            # Parse into structured format
+            context = _build_context_from_datasets()
+            client = LLMClient(request_timeout=45)
             parser = ResponseParser()
-            parsed_recs = parser.parse_recommendations(recs)
-
-            if parsed_recs:
-                st.markdown("---")
-                st.markdown("### 📊 Recommendations Summary")
-
-                for i, rec in enumerate(parsed_recs, 1):
-                    priority = rec.get("priority", "Medium")
-                    priority_color = {
-                        "High": "🔴",
-                        "Medium": "🟡",
-                        "Low": "🟢"
-                    }.get(priority, "⚪")
-
-                    st.markdown(
-                        f"""
-                        <div style="
-                            background: #1A1D23;
-                            border-left: 4px solid {'#FF6B6B' if priority == 'High' else '#FFE66D' if priority == 'Medium' else '#4ECDC4'};
-                            border-radius: 8px;
-                            padding: 15px 20px;
-                            margin: 8px 0;
-                        ">
-                            <strong style="color: #FAFAFA;">
-                                {priority_color} #{i}: {rec.get('title', 'Recommendation')}
-                            </strong>
-                            <br>
-                            <span style="color: #8B949E; font-size: 0.85rem;">
-                                Priority: {priority}
-                                {' | Impact: ' + rec.get('impact', '') if rec.get('impact') else ''}
-                            </span>
-                            <br>
-                            <span style="color: #E0E0E0;">{rec.get('details', '')}</span>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-
-    # ─── Generate New Recommendations ──────────────────────────
-
-    st.markdown("---")
-    st.markdown("### 🔮 Generate Custom Recommendations")
-
-    context_source = st.radio(
-        "Context source",
-        ["All available insights", "Custom context"],
-        horizontal=True
-    )
-
-    custom_context = ""
-    if context_source == "Custom context":
-        custom_context = st.text_area(
-            "Enter your analysis context",
-            height=150,
-            placeholder="Paste data summaries, KPIs, or previous insights..."
-        )
-    elif context_source == "All available insights":
-        # Gather all available insights
-        parts = []
-        if has_multi_agent:
-            for key, report in st.session_state["multi_agent_results"].get("reports", {}).items():
-                parts.append(f"## {key.title()} Analysis\n{report}")
-        for key in st.session_state.keys():
-            if key.startswith("insight_"):
-                dataset = key.replace("insight_", "")
-                parts.append(f"## {dataset.title()} Insight\n{st.session_state[key]}")
-
-        custom_context = "\n\n---\n\n".join(parts) if parts else ""
-
-    if st.button("🎯 Generate Recommendations", type="primary"):
-        if not custom_context:
-            st.warning("No analysis context available. Run AI Insights or Multi-Agent Analysis first.")
-            return
-
-        with st.spinner("🧠 Generating strategic recommendations..."):
-            if "llm_client" not in st.session_state:
-                st.session_state["llm_client"] = LLMClient()
-
-            llm = st.session_state["llm_client"]
-            prompt = PromptTemplates.recommendation_prompt(custom_context)
-
-            response = llm.generate(
+            prompt = PromptTemplates.recommendation_prompt(context)
+            recommendations = client.generate(
                 prompt=prompt,
                 system_prompt=PromptTemplates.SYSTEM_STRATEGIST,
-                temperature=0.2
+                temperature=0.2,
             )
-
-            st.session_state["custom_recommendations"] = response
-
-    # Show custom recommendations
-    if "custom_recommendations" in st.session_state:
-        st.markdown("---")
-        insight_card("Custom Recommendations", "", "🎯")
-        st.markdown(st.session_state["custom_recommendations"])
-
-        st.download_button(
-            "📥 Download Recommendations",
-            st.session_state["custom_recommendations"],
-            file_name="ai_recommendations.md",
-            mime="text/markdown"
-        )
-
-
-if __name__ == "__main__":
-    render()
+            recommendations = parser.clean_response(recommendations)
+            state.set_last_recommendations(recommendations)
+            return dbc.Alert(
+                "Recommendations generated from the current datasets.", color="success"
+            ), recommendations
+        except Exception as e:
+            return dbc.Alert(
+                f"Could not generate recommendations: {e}", color="danger"
+            ), state.get_last_recommendations() or ""

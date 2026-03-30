@@ -30,11 +30,13 @@ THEME = {
         "#34D399",  # Green
         "#FB923C",  # Orange
     ],
-    "font_family": "Inter, sans-serif"
+    "font_family": "Inter, sans-serif",
 }
 
 
-def _empty_figure(title: str, message: str = "Not enough valid data for this chart") -> go.Figure:
+def _empty_figure(
+    title: str, message: str = "Not enough valid data for this chart"
+) -> go.Figure:
     """Return a themed placeholder figure instead of a blank chart."""
     fig = go.Figure()
     _apply_theme(fig, title)
@@ -117,7 +119,10 @@ def _figure_has_data(fig: go.Figure) -> bool:
             continue
 
         if trace_type in {"scatter", "scattergl", "scatterpolar"}:
-            if _valid_pair_count(getattr(trace, "x", None), getattr(trace, "y", None)) >= 3:
+            if (
+                _valid_pair_count(getattr(trace, "x", None), getattr(trace, "y", None))
+                >= 3
+            ):
                 return True
             continue
 
@@ -144,7 +149,10 @@ def _figure_has_data(fig: go.Figure) -> bool:
                 return True
             continue
 
-        if _valid_count(getattr(trace, "x", None)) > 0 or _valid_count(getattr(trace, "y", None)) > 0:
+        if (
+            _valid_count(getattr(trace, "x", None)) > 0
+            or _valid_count(getattr(trace, "y", None)) > 0
+        ):
             return True
 
     return False
@@ -161,28 +169,30 @@ def _apply_theme(fig: go.Figure, title: str = "") -> go.Figure:
         title=dict(
             text=title,
             font=dict(size=18, color=THEME["text_color"], family=THEME["font_family"]),
-            x=0.02
+            x=0.02,
         ),
-        paper_bgcolor=THEME["paper_color"],
-        plot_bgcolor=THEME["bg_color"],
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color=THEME["text_color"], family=THEME["font_family"], size=12),
-        margin=dict(l=40, r=40, t=60, b=40),
+        margin=dict(l=10, r=10, t=50, b=20),
         legend=dict(
-            bgcolor="rgba(26, 29, 35, 0.8)",
+            bgcolor="rgba(26, 29, 35, 0.5)",
             bordercolor=THEME["grid_color"],
-            borderwidth=1
+            borderwidth=1,
         ),
         xaxis=dict(gridcolor=THEME["grid_color"], zeroline=False),
         yaxis=dict(gridcolor=THEME["grid_color"], zeroline=False),
-        hovermode="closest"
+        hovermode="closest",
     )
     return fig
 
 
 # ─── Sales Charts ──────────────────────────────────────────────────
 
-def revenue_trend_chart(df: pd.DataFrame, date_col: str = "date",
-                        value_col: str = "revenue") -> go.Figure:
+
+def revenue_trend_chart(
+    df: pd.DataFrame, date_col: str = "date", value_col: str = "revenue"
+) -> go.Figure:
     """Create an interactive revenue trend chart with moving average."""
     if date_col not in df.columns or value_col not in df.columns:
         return _empty_figure("📈 Revenue Trend", "Required columns are missing.")
@@ -195,34 +205,42 @@ def revenue_trend_chart(df: pd.DataFrame, date_col: str = "date",
         return _empty_figure("📈 Revenue Trend", "No valid date/value rows found.")
 
     # Monthly aggregation
-    monthly = df_copy.groupby(pd.Grouper(key=date_col, freq="ME"))[value_col].sum().reset_index()
+    monthly = (
+        df_copy.groupby(pd.Grouper(key=date_col, freq="ME"))[value_col]
+        .sum()
+        .reset_index()
+    )
     if monthly.empty:
         return _empty_figure("📈 Revenue Trend", "No monthly points available.")
 
     fig = go.Figure()
 
     # Main revenue line
-    fig.add_trace(go.Scatter(
-        x=monthly[date_col],
-        y=monthly[value_col],
-        mode="lines+markers",
-        name="Monthly Revenue",
-        line=dict(color=THEME["accent_colors"][0], width=2.5),
-        marker=dict(size=6),
-        fill="tozeroy",
-        fillcolor="rgba(0, 212, 255, 0.1)"
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=monthly[date_col],
+            y=monthly[value_col],
+            mode="lines+markers",
+            name="Monthly Revenue",
+            line=dict(color=THEME["accent_colors"][0], width=2.5),
+            marker=dict(size=6),
+            fill="tozeroy",
+            fillcolor="rgba(0, 212, 255, 0.1)",
+        )
+    )
 
     # 3-month moving average
     if len(monthly) >= 3:
         monthly["ma"] = monthly[value_col].rolling(3, min_periods=1).mean()
-        fig.add_trace(go.Scatter(
-            x=monthly[date_col],
-            y=monthly["ma"],
-            mode="lines",
-            name="3-Month Avg",
-            line=dict(color=THEME["accent_colors"][3], width=2, dash="dash")
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=monthly[date_col],
+                y=monthly["ma"],
+                mode="lines",
+                name="3-Month Avg",
+                line=dict(color=THEME["accent_colors"][3], width=2, dash="dash"),
+            )
+        )
 
     _apply_theme(fig, "📈 Revenue Trend")
     fig.update_yaxes(title="Revenue ($)")
@@ -234,18 +252,23 @@ def top_products_chart(df: pd.DataFrame, n: int = 8) -> go.Figure:
     """Create a horizontal bar chart of top products by revenue."""
     top = df.groupby("product")["revenue"].sum().nlargest(n).sort_values()
 
-    fig = go.Figure(go.Bar(
-        x=top.values,
-        y=top.index,
-        orientation="h",
-        marker=dict(
-            color=top.values,
-            colorscale=[[0, THEME["accent_colors"][2]], [1, THEME["accent_colors"][0]]],
-            line=dict(width=0)
-        ),
-        text=[f"${v:,.0f}" for v in top.values],
-        textposition="auto"
-    ))
+    fig = go.Figure(
+        go.Bar(
+            x=top.values,
+            y=top.index,
+            orientation="h",
+            marker=dict(
+                color=top.values,
+                colorscale=[
+                    [0, THEME["accent_colors"][2]],
+                    [1, THEME["accent_colors"][0]],
+                ],
+                line=dict(width=0),
+            ),
+            text=[f"${v:,.0f}" for v in top.values],
+            textposition="auto",
+        )
+    )
 
     _apply_theme(fig, f"🏆 Top {n} Products by Revenue")
     fig.update_xaxes(title="Total Revenue ($)")
@@ -256,14 +279,16 @@ def revenue_by_region_chart(df: pd.DataFrame) -> go.Figure:
     """Create a pie/donut chart for revenue by region."""
     region_rev = df.groupby("region")["revenue"].sum().reset_index()
 
-    fig = go.Figure(go.Pie(
-        labels=region_rev["region"],
-        values=region_rev["revenue"],
-        hole=0.45,
-        marker=dict(colors=THEME["accent_colors"]),
-        textinfo="label+percent",
-        textfont=dict(size=12)
-    ))
+    fig = go.Figure(
+        go.Pie(
+            labels=region_rev["region"],
+            values=region_rev["revenue"],
+            hole=0.45,
+            marker=dict(colors=THEME["accent_colors"]),
+            textinfo="label+percent",
+            textfont=dict(size=12),
+        )
+    )
 
     _apply_theme(fig, "🌍 Revenue Distribution by Region")
     return fig
@@ -271,18 +296,24 @@ def revenue_by_region_chart(df: pd.DataFrame) -> go.Figure:
 
 def revenue_by_category_chart(df: pd.DataFrame) -> go.Figure:
     """Create a bar chart for revenue by category."""
-    cat_rev = df.groupby("category")["revenue"].sum().sort_values(ascending=False).reset_index()
+    cat_rev = (
+        df.groupby("category")["revenue"]
+        .sum()
+        .sort_values(ascending=False)
+        .reset_index()
+    )
 
-    fig = go.Figure(go.Bar(
-        x=cat_rev["category"],
-        y=cat_rev["revenue"],
-        marker=dict(
-            color=THEME["accent_colors"][:len(cat_rev)],
-            line=dict(width=0)
-        ),
-        text=[f"${v:,.0f}" for v in cat_rev["revenue"]],
-        textposition="auto"
-    ))
+    fig = go.Figure(
+        go.Bar(
+            x=cat_rev["category"],
+            y=cat_rev["revenue"],
+            marker=dict(
+                color=THEME["accent_colors"][: len(cat_rev)], line=dict(width=0)
+            ),
+            text=[f"${v:,.0f}" for v in cat_rev["revenue"]],
+            textposition="auto",
+        )
+    )
 
     _apply_theme(fig, "📊 Revenue by Category")
     fig.update_yaxes(title="Revenue ($)")
@@ -291,33 +322,40 @@ def revenue_by_category_chart(df: pd.DataFrame) -> go.Figure:
 
 # ─── Marketing Charts ─────────────────────────────────────────────
 
+
 def campaign_performance_chart(df: pd.DataFrame) -> go.Figure:
     """Create a grouped bar chart comparing campaign types by ROI."""
-    campaign_stats = df.groupby("campaign_type").agg({
-        "roi": "mean",
-        "conversions": "sum",
-        "spend": "sum"
-    }).reset_index()
+    campaign_stats = (
+        df.groupby("campaign_type")
+        .agg({"roi": "mean", "conversions": "sum", "spend": "sum"})
+        .reset_index()
+    )
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-    fig.add_trace(go.Bar(
-        x=campaign_stats["campaign_type"],
-        y=campaign_stats["roi"],
-        name="Avg ROI (%)",
-        marker_color=THEME["accent_colors"][0],
-        text=[f"{v:.1f}%" for v in campaign_stats["roi"]],
-        textposition="auto"
-    ), secondary_y=False)
+    fig.add_trace(
+        go.Bar(
+            x=campaign_stats["campaign_type"],
+            y=campaign_stats["roi"],
+            name="Avg ROI (%)",
+            marker_color=THEME["accent_colors"][0],
+            text=[f"{v:.1f}%" for v in campaign_stats["roi"]],
+            textposition="auto",
+        ),
+        secondary_y=False,
+    )
 
-    fig.add_trace(go.Scatter(
-        x=campaign_stats["campaign_type"],
-        y=campaign_stats["conversions"],
-        name="Total Conversions",
-        mode="lines+markers",
-        line=dict(color=THEME["accent_colors"][1], width=2.5),
-        marker=dict(size=8)
-    ), secondary_y=True)
+    fig.add_trace(
+        go.Scatter(
+            x=campaign_stats["campaign_type"],
+            y=campaign_stats["conversions"],
+            name="Total Conversions",
+            mode="lines+markers",
+            line=dict(color=THEME["accent_colors"][1], width=2.5),
+            marker=dict(size=8),
+        ),
+        secondary_y=True,
+    )
 
     _apply_theme(fig, "🎯 Campaign Performance")
     fig.update_yaxes(title="Average ROI (%)", secondary_y=False)
@@ -327,12 +365,11 @@ def campaign_performance_chart(df: pd.DataFrame) -> go.Figure:
 
 def channel_comparison_chart(df: pd.DataFrame) -> go.Figure:
     """Create a radar chart comparing marketing channels."""
-    channel_stats = df.groupby("channel").agg({
-        "ctr": "mean",
-        "conversion_rate": "mean",
-        "roi": "mean",
-        "cpc": "mean"
-    }).reset_index()
+    channel_stats = (
+        df.groupby("channel")
+        .agg({"ctr": "mean", "conversion_rate": "mean", "roi": "mean", "cpc": "mean"})
+        .reset_index()
+    )
 
     # Normalize metrics for radar chart
     metrics = ["ctr", "conversion_rate", "roi"]
@@ -351,37 +388,52 @@ def channel_comparison_chart(df: pd.DataFrame) -> go.Figure:
         values.append(values[0])  # Close the polygon
         cats = categories + [categories[0]]
 
-        fig.add_trace(go.Scatterpolar(
-            r=values,
-            theta=cats,
-            name=row["channel"],
-            line=dict(color=THEME["accent_colors"][i % len(THEME["accent_colors"])])
-        ))
+        fig.add_trace(
+            go.Scatterpolar(
+                r=values,
+                theta=cats,
+                name=row["channel"],
+                line=dict(
+                    color=THEME["accent_colors"][i % len(THEME["accent_colors"])]
+                ),
+            )
+        )
 
     _apply_theme(fig, "📡 Channel Comparison")
-    fig.update_layout(polar=dict(
-        bgcolor=THEME["bg_color"],
-        radialaxis=dict(gridcolor=THEME["grid_color"], showticklabels=False),
-        angularaxis=dict(gridcolor=THEME["grid_color"])
-    ))
+    fig.update_layout(
+        polar=dict(
+            bgcolor=THEME["bg_color"],
+            radialaxis=dict(gridcolor=THEME["grid_color"], showticklabels=False),
+            angularaxis=dict(gridcolor=THEME["grid_color"]),
+        )
+    )
     return fig
 
 
 # ─── Customer Charts ───────────────────────────────────────────────
 
+
 def customer_segments_chart(df: pd.DataFrame) -> go.Figure:
     """Create a scatter plot of customer segments by LTV vs satisfaction."""
     required = ["satisfaction_score", "lifetime_value", "segment", "engagement_score"]
     if any(c not in df.columns for c in required):
-        return _empty_figure("👥 Customer Segments: Value vs Satisfaction", "Required columns are missing.")
+        return _empty_figure(
+            "👥 Customer Segments: Value vs Satisfaction",
+            "Required columns are missing.",
+        )
 
     df_copy = df.copy()
     df_copy["satisfaction_score"] = _as_numeric(df_copy["satisfaction_score"])
     df_copy["lifetime_value"] = _as_numeric(df_copy["lifetime_value"])
     df_copy["engagement_score"] = _as_numeric(df_copy["engagement_score"])
-    df_copy = df_copy.dropna(subset=["satisfaction_score", "lifetime_value", "engagement_score", "segment"])
+    df_copy = df_copy.dropna(
+        subset=["satisfaction_score", "lifetime_value", "engagement_score", "segment"]
+    )
     if df_copy.empty:
-        return _empty_figure("👥 Customer Segments: Value vs Satisfaction", "No valid segment points found.")
+        return _empty_figure(
+            "👥 Customer Segments: Value vs Satisfaction",
+            "No valid segment points found.",
+        )
 
     use_log_y = _positive_log_ok(df_copy["lifetime_value"])
 
@@ -391,38 +443,52 @@ def customer_segments_chart(df: pd.DataFrame) -> go.Figure:
         y="lifetime_value",
         color="segment",
         size="engagement_score",
-        hover_data=[c for c in ["churn_risk", "purchase_frequency"] if c in df_copy.columns],
+        hover_data=[
+            c for c in ["churn_risk", "purchase_frequency"] if c in df_copy.columns
+        ],
         color_discrete_sequence=THEME["accent_colors"],
-        log_y=use_log_y
+        log_y=use_log_y,
     )
 
     _apply_theme(fig, "👥 Customer Segments: Value vs Satisfaction")
     fig.update_xaxes(title="Satisfaction Score")
-    fig.update_yaxes(title="Lifetime Value ($, log scale)" if use_log_y else "Lifetime Value ($)")
+    fig.update_yaxes(
+        title="Lifetime Value ($, log scale)" if use_log_y else "Lifetime Value ($)"
+    )
     return fig
 
 
 def churn_risk_distribution_chart(df: pd.DataFrame) -> go.Figure:
     """Create a histogram of churn risk distribution."""
     if "churn_risk" not in df.columns:
-        return _empty_figure("⚠️ Churn Risk Distribution", "Column churn_risk is missing.")
+        return _empty_figure(
+            "⚠️ Churn Risk Distribution", "Column churn_risk is missing."
+        )
 
     x = _as_numeric(df["churn_risk"]).dropna()
     if x.empty:
-        return _empty_figure("⚠️ Churn Risk Distribution", "No valid churn risk values found.")
+        return _empty_figure(
+            "⚠️ Churn Risk Distribution", "No valid churn risk values found."
+        )
 
-    fig = go.Figure(go.Histogram(
-        x=x,
-        nbinsx=30,
-        marker_color=THEME["accent_colors"][1],
-        marker_line_color=THEME["accent_colors"][0],
-        marker_line_width=1,
-        opacity=0.8
-    ))
+    fig = go.Figure(
+        go.Histogram(
+            x=x,
+            nbinsx=30,
+            marker_color=THEME["accent_colors"][1],
+            marker_line_color=THEME["accent_colors"][0],
+            marker_line_width=1,
+            opacity=0.8,
+        )
+    )
 
     # Add threshold line
-    fig.add_vline(x=0.5, line_dash="dash", line_color=THEME["accent_colors"][3],
-                  annotation_text="High Risk Threshold")
+    fig.add_vline(
+        x=0.5,
+        line_dash="dash",
+        line_color=THEME["accent_colors"][3],
+        annotation_text="High Risk Threshold",
+    )
 
     _apply_theme(fig, "⚠️ Churn Risk Distribution")
     fig.update_xaxes(title="Churn Risk Score")
@@ -433,13 +499,17 @@ def churn_risk_distribution_chart(df: pd.DataFrame) -> go.Figure:
 def segment_ltv_chart(df: pd.DataFrame) -> go.Figure:
     """Create a box plot of LTV by customer segment."""
     if "segment" not in df.columns or "lifetime_value" not in df.columns:
-        return _empty_figure("💰 Lifetime Value by Segment", "Required columns are missing.")
+        return _empty_figure(
+            "💰 Lifetime Value by Segment", "Required columns are missing."
+        )
 
     df_copy = df.copy()
     df_copy["lifetime_value"] = _as_numeric(df_copy["lifetime_value"])
     df_copy = df_copy.dropna(subset=["segment", "lifetime_value"])
     if df_copy.empty:
-        return _empty_figure("💰 Lifetime Value by Segment", "No valid LTV values found.")
+        return _empty_figure(
+            "💰 Lifetime Value by Segment", "No valid LTV values found."
+        )
 
     use_log_y = _positive_log_ok(df_copy["lifetime_value"])
 
@@ -449,22 +519,27 @@ def segment_ltv_chart(df: pd.DataFrame) -> go.Figure:
         y="lifetime_value",
         color="segment",
         color_discrete_sequence=THEME["accent_colors"],
-        log_y=use_log_y
+        log_y=use_log_y,
     )
 
     _apply_theme(fig, "💰 Lifetime Value by Segment")
     fig.update_xaxes(title="Customer Segment")
-    fig.update_yaxes(title="Lifetime Value ($, log scale)" if use_log_y else "Lifetime Value ($)")
+    fig.update_yaxes(
+        title="Lifetime Value ($, log scale)" if use_log_y else "Lifetime Value ($)"
+    )
     return fig
 
 
 # ─── GitHub/Tech Charts ───────────────────────────────────────────
 
+
 def github_stats_chart(df: pd.DataFrame) -> go.Figure:
     """Create a scatter plot of GitHub repos: stars vs forks colored by language."""
     required = ["stars", "forks"]
     if any(c not in df.columns for c in required):
-        return _empty_figure("🐙 GitHub Repos: Stars vs Forks", "Required columns are missing.")
+        return _empty_figure(
+            "🐙 GitHub Repos: Stars vs Forks", "Required columns are missing."
+        )
 
     df_copy = df.copy()
     for col in ["stars", "forks", "contributors", "code_quality_score", "open_issues"]:
@@ -476,7 +551,9 @@ def github_stats_chart(df: pd.DataFrame) -> go.Figure:
         base_cols.append("language")
     df_copy = df_copy.dropna(subset=base_cols)
     if df_copy.empty:
-        return _empty_figure("🐙 GitHub Repos: Stars vs Forks", "No valid stars/forks pairs found.")
+        return _empty_figure(
+            "🐙 GitHub Repos: Stars vs Forks", "No valid stars/forks pairs found."
+        )
 
     use_log_x = _positive_log_ok(df_copy["stars"])
     use_log_y = _positive_log_ok(df_copy["forks"])
@@ -487,10 +564,14 @@ def github_stats_chart(df: pd.DataFrame) -> go.Figure:
         y="forks",
         color="language" if "language" in df_copy.columns else None,
         size="contributors" if "contributors" in df_copy.columns else None,
-        hover_data=[c for c in ["repo_name", "code_quality_score", "open_issues"] if c in df_copy.columns],
+        hover_data=[
+            c
+            for c in ["repo_name", "code_quality_score", "open_issues"]
+            if c in df_copy.columns
+        ],
         color_discrete_sequence=THEME["accent_colors"],
         log_x=use_log_x,
-        log_y=use_log_y
+        log_y=use_log_y,
     )
 
     _apply_theme(fig, "🐙 GitHub Repos: Stars vs Forks")
@@ -501,30 +582,35 @@ def github_stats_chart(df: pd.DataFrame) -> go.Figure:
 
 def language_popularity_chart(df: pd.DataFrame) -> go.Figure:
     """Create a bar chart of programming language popularity."""
-    lang_stats = df.groupby("language").agg({
-        "stars": "sum",
-        "repo_name": "count"
-    }).reset_index()
+    lang_stats = (
+        df.groupby("language").agg({"stars": "sum", "repo_name": "count"}).reset_index()
+    )
     lang_stats.columns = ["language", "total_stars", "repo_count"]
     lang_stats = lang_stats.sort_values("total_stars", ascending=False)
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-    fig.add_trace(go.Bar(
-        x=lang_stats["language"],
-        y=lang_stats["total_stars"],
-        name="Total Stars",
-        marker_color=THEME["accent_colors"][4],
-    ), secondary_y=False)
+    fig.add_trace(
+        go.Bar(
+            x=lang_stats["language"],
+            y=lang_stats["total_stars"],
+            name="Total Stars",
+            marker_color=THEME["accent_colors"][4],
+        ),
+        secondary_y=False,
+    )
 
-    fig.add_trace(go.Scatter(
-        x=lang_stats["language"],
-        y=lang_stats["repo_count"],
-        name="Repo Count",
-        mode="lines+markers",
-        line=dict(color=THEME["accent_colors"][3], width=2.5),
-        marker=dict(size=8)
-    ), secondary_y=True)
+    fig.add_trace(
+        go.Scatter(
+            x=lang_stats["language"],
+            y=lang_stats["repo_count"],
+            name="Repo Count",
+            mode="lines+markers",
+            line=dict(color=THEME["accent_colors"][3], width=2.5),
+            marker=dict(size=8),
+        ),
+        secondary_y=True,
+    )
 
     _apply_theme(fig, "💻 Programming Language Popularity")
     fig.update_yaxes(title="Total Stars", secondary_y=False)
@@ -535,19 +621,25 @@ def language_popularity_chart(df: pd.DataFrame) -> go.Figure:
 def code_quality_chart(df: pd.DataFrame) -> go.Figure:
     """Create a violin plot of code quality by language."""
     if "language" not in df.columns or "code_quality_score" not in df.columns:
-        return _empty_figure("🔍 Code Quality Distribution by Language", "Required columns are missing.")
+        return _empty_figure(
+            "🔍 Code Quality Distribution by Language", "Required columns are missing."
+        )
 
     df_copy = df.copy()
     df_copy["code_quality_score"] = _as_numeric(df_copy["code_quality_score"])
     df_copy = df_copy.dropna(subset=["language", "code_quality_score"])
     if df_copy.empty:
-        return _empty_figure("🔍 Code Quality Distribution by Language", "No valid quality scores found.")
+        return _empty_figure(
+            "🔍 Code Quality Distribution by Language", "No valid quality scores found."
+        )
 
     # Filter to top 8 languages
     top_langs = df_copy["language"].value_counts().head(8).index.tolist()
     df_filtered = df_copy[df_copy["language"].isin(top_langs)]
     if df_filtered.empty:
-        return _empty_figure("🔍 Code Quality Distribution by Language", "No language groups available.")
+        return _empty_figure(
+            "🔍 Code Quality Distribution by Language", "No language groups available."
+        )
 
     fig = px.violin(
         df_filtered,
@@ -555,7 +647,7 @@ def code_quality_chart(df: pd.DataFrame) -> go.Figure:
         y="code_quality_score",
         color="language",
         box=True,
-        color_discrete_sequence=THEME["accent_colors"]
+        color_discrete_sequence=THEME["accent_colors"],
     )
 
     _apply_theme(fig, "🔍 Code Quality Distribution by Language")
@@ -564,7 +656,226 @@ def code_quality_chart(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
+# ─── Survey & NPS Charts ──────────────────────────────────────────
+
+
+def nps_distribution_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a bar chart showing the breakdown of NPS categories."""
+    nps_col_cands = [
+        "nps",
+        "nps_score",
+        "net_promoter",
+        "survey_result",
+        "score",
+        "rating",
+    ]
+    nps_col = next(
+        (c for c in nps_col_cands if c.lower() in [col.lower() for col in df.columns]),
+        None,
+    )
+    if nps_col:
+        nps_col = next((c for c in df.columns if c.lower() == nps_col.lower()), None)
+
+    if not nps_col:
+        return _empty_figure("📊 NPS Distribution", "No survey score column found.")
+
+    scores = _as_numeric(df[nps_col]).dropna()
+    if scores.empty:
+        return _empty_figure("📊 NPS Distribution", "No valid survey scores found.")
+
+    promoters = (scores >= 9).sum()
+    passives = ((scores >= 7) & (scores <= 8)).sum()
+    detractors = (scores <= 6).sum()
+
+    fig = go.Figure(
+        go.Bar(
+            x=["Promoters (9-10)", "Passives (7-8)", "Detractors (0-6)"],
+            y=[promoters, passives, detractors],
+            marker_color=[
+                THEME["accent_colors"][6],
+                THEME["accent_colors"][3],
+                THEME["accent_colors"][1],
+            ],
+            text=[promoters, passives, detractors],
+            textposition="auto",
+        )
+    )
+    _apply_theme(fig, "📊 NPS Breakdown")
+    fig.update_yaxes(title="Number of Respondents")
+    return fig
+
+
+def nps_trend_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a line chart showing average NPS and Score over time."""
+    nps_col_cands = [
+        "nps",
+        "nps_score",
+        "net_promoter",
+        "survey_result",
+        "score",
+        "rating",
+    ]
+    date_col_cands = ["year_month", "date", "created_at", "survey_date", "timestamp"]
+
+    nps_col = next((c for c in df.columns if c.lower() in nps_col_cands), None)
+    date_col = next(
+        (c for c in date_col_cands if c.lower() in [col.lower() for col in df.columns]),
+        None,
+    )
+    if date_col:
+        date_col = next((c for c in df.columns if c.lower() == date_col.lower()), None)
+
+    if not nps_col or not date_col:
+        return _empty_figure("📈 NPS Trend", "Missing date or survey score columns.")
+
+    df_copy = df.copy()
+    if pd.api.types.is_numeric_dtype(df_copy[date_col]):
+        df_copy["_parsed_date"] = pd.to_datetime(
+            df_copy[date_col].astype(str), format="%Y%m", errors="coerce"
+        )
+        # Fallback if that broke
+        if df_copy["_parsed_date"].isna().all():
+            df_copy["_parsed_date"] = pd.to_datetime(df_copy[date_col], errors="coerce")
+    else:
+        df_copy["_parsed_date"] = pd.to_datetime(df_copy[date_col], errors="coerce")
+
+    df_copy[nps_col] = _as_numeric(df_copy[nps_col])
+    df_copy = df_copy.dropna(subset=["_parsed_date", nps_col])
+
+    if df_copy.empty:
+        return _empty_figure("📈 NPS Trend", "No valid trend data found.")
+
+    monthly = (
+        df_copy.groupby(pd.Grouper(key="_parsed_date", freq="ME"))[nps_col]
+        .mean()
+        .reset_index()
+    )
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=monthly["_parsed_date"],
+            y=monthly[nps_col],
+            mode="lines+markers",
+            name="Average Score",
+            line=dict(color=THEME["accent_colors"][2], width=3),
+            marker=dict(size=8),
+            fill="tozeroy",
+            fillcolor="rgba(78, 205, 196, 0.1)",
+        )
+    )
+
+    _apply_theme(fig, "📈 Average Survey Score Trend")
+    fig.update_xaxes(title="Date")
+    fig.update_yaxes(title="Average Score")
+    return fig
+
+
+def nps_by_region_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a bar chart of average survey score by region/company."""
+    nps_col_cands = [
+        "nps",
+        "nps_score",
+        "net_promoter",
+        "survey_result",
+        "score",
+        "rating",
+    ]
+    nps_col = next((c for c in df.columns if c.lower() in nps_col_cands), None)
+
+    cat_col_cands = ["region", "company", "department", "store", "location"]
+    cat_col = next(
+        (c for c in cat_col_cands if c.lower() in [col.lower() for col in df.columns]),
+        None,
+    )
+    if cat_col:
+        cat_col = next((c for c in df.columns if c.lower() == cat_col.lower()), None)
+
+    if not nps_col or not cat_col:
+        return _empty_figure(
+            "🌍 Score by Region", "Missing region or survey score columns."
+        )
+
+    df_copy = df.copy()
+    df_copy[nps_col] = _as_numeric(df_copy[nps_col])
+    df_copy = df_copy.dropna(subset=[cat_col, nps_col])
+
+    if df_copy.empty:
+        return _empty_figure("🌍 Score by Category", "No valid data to group.")
+
+    agg = (
+        df_copy.groupby(cat_col)[nps_col]
+        .mean()
+        .sort_values(ascending=False)
+        .reset_index()
+    )
+
+    fig = go.Figure(
+        go.Bar(
+            x=agg[cat_col],
+            y=agg[nps_col],
+            marker=dict(color=THEME["accent_colors"][: len(agg)], line=dict(width=0)),
+            text=[f"{v:.1f}" for v in agg[nps_col]],
+            textposition="auto",
+        )
+    )
+    _apply_theme(fig, f"🌍 Average Score by {cat_col.title()}")
+    fig.update_yaxes(title="Average Score")
+    return fig
+
+
+def sessions_vs_nps_chart(df: pd.DataFrame) -> go.Figure:
+    """Scatter plot of sessions vs survey score to identify engagement correlations."""
+    nps_col_cands = [
+        "nps",
+        "nps_score",
+        "net_promoter",
+        "survey_result",
+        "score",
+        "rating",
+    ]
+    ses_col_cands = ["sessions", "engagement", "visits", "logins"]
+
+    nps_col = next((c for c in df.columns if c.lower() in nps_col_cands), None)
+    ses_col = next(
+        (c for c in ses_col_cands if c.lower() in [col.lower() for col in df.columns]),
+        None,
+    )
+    if ses_col:
+        ses_col = next((c for c in df.columns if c.lower() == ses_col.lower()), None)
+
+    if not nps_col or not ses_col:
+        return _empty_figure(
+            "🔵 Sessions vs. Survey Score", "Missing sessions or survey columns."
+        )
+
+    df_copy = df.copy()
+    df_copy[nps_col] = _as_numeric(df_copy[nps_col])
+    df_copy[ses_col] = _as_numeric(df_copy[ses_col])
+    df_copy = df_copy.dropna(subset=[nps_col, ses_col])
+
+    if len(df_copy) < 3:
+        return _empty_figure(
+            "🔵 Engagement vs Score", "Not enough valid numeric pairs."
+        )
+
+    fig = px.scatter(
+        df_copy,
+        x=ses_col,
+        y=nps_col,
+        color_discrete_sequence=[THEME["accent_colors"][4]],
+        opacity=0.6,
+        trendline="ols" if len(df_copy) > 5 else None,
+    )
+
+    _apply_theme(fig, "🔵 Engagement vs. Survey Score")
+    fig.update_xaxes(title=ses_col.title())
+    fig.update_yaxes(title="Survey Score")
+    return fig
+
+
 # ─── Dynamic / Auto Chart Generation ─────────────────────────────
+
 
 def auto_chart(df: pd.DataFrame, chart_spec: dict) -> Optional[go.Figure]:
     """
@@ -582,6 +893,8 @@ def auto_chart(df: pd.DataFrame, chart_spec: dict) -> Optional[go.Figure]:
     x_col = chart_spec.get("x")
     y_col = chart_spec.get("y")
     title = chart_spec.get("title", "Chart")
+    freq = chart_spec.get("freq", "ME")
+    color_col = chart_spec.get("color")
 
     if x_col and x_col not in df.columns:
         return None
@@ -590,13 +903,13 @@ def auto_chart(df: pd.DataFrame, chart_spec: dict) -> Optional[go.Figure]:
 
     try:
         if chart_type == "line":
-            return _auto_line_chart(df, x_col, y_col, title)
+            return _auto_line_chart(df, x_col, y_col, title, freq=freq)
         elif chart_type == "bar":
             return _auto_bar_chart(df, x_col, y_col, title)
         elif chart_type == "histogram":
             return _auto_histogram(df, x_col, title)
         elif chart_type == "scatter":
-            return _auto_scatter(df, x_col, y_col, title)
+            return _auto_scatter(df, x_col, y_col, title, color_col=color_col)
         elif chart_type == "pie":
             return _auto_pie_chart(df, x_col, y_col, title)
         elif chart_type == "box":
@@ -604,11 +917,9 @@ def auto_chart(df: pd.DataFrame, chart_spec: dict) -> Optional[go.Figure]:
         elif chart_type == "heatmap":
             return _auto_heatmap(df, chart_spec.get("columns", []), title)
         elif chart_type == "stacked_area":
-            return _auto_stacked_area(df, x_col, y_col,
-                                      chart_spec.get("color"), title)
+            return _auto_stacked_area(df, x_col, y_col, chart_spec.get("color"), title)
         elif chart_type == "treemap":
-            return _auto_treemap(df, chart_spec.get("path", []),
-                                 y_col, title)
+            return _auto_treemap(df, chart_spec.get("path", []), y_col, title)
         elif chart_type == "funnel":
             return _auto_funnel(df, chart_spec.get("columns", []), title)
         elif chart_type == "waterfall":
@@ -619,11 +930,19 @@ def auto_chart(df: pd.DataFrame, chart_spec: dict) -> Optional[go.Figure]:
         return None
 
 
-def _auto_line_chart(df, x_col, y_col, title):
+def _auto_line_chart(df, x_col, y_col, title, freq="ME"):
     if x_col not in df.columns:
         return _empty_figure(f"📈 {title}", "X-axis column is missing.")
 
     df_copy = df.copy()
+    parsed_dates = pd.to_datetime(df_copy[x_col], errors="coerce")
+    can_use_dates = parsed_dates.notna().sum() >= max(3, int(len(df_copy) * 0.6))
+
+    if not can_use_dates:
+        return _empty_figure(
+            f"📈 {title}",
+            "Line charts require a date-like x-axis. Try a bar or scatter chart instead.",
+        )
 
     # Numeric or count fallback for y-axis.
     if y_col and y_col in df_copy.columns:
@@ -632,37 +951,22 @@ def _auto_line_chart(df, x_col, y_col, title):
     else:
         use_count = True
 
-    parsed_dates = pd.to_datetime(df_copy[x_col], errors="coerce")
-    can_use_dates = parsed_dates.notna().sum() >= max(3, int(len(df_copy) * 0.6))
-
-    if can_use_dates:
-        df_copy[x_col] = parsed_dates
-        if use_count:
-            monthly = (
-                df_copy.dropna(subset=[x_col])
-                .groupby(pd.Grouper(key=x_col, freq="ME"))
-                .size()
-                .reset_index(name="value")
-            )
-        else:
-            df_copy[y_col] = y_num
-            monthly = (
-                df_copy.dropna(subset=[x_col, y_col])
-                .groupby(pd.Grouper(key=x_col, freq="ME"))[y_col]
-                .sum()
-                .reset_index(name="value")
-            )
+    df_copy[x_col] = parsed_dates
+    if use_count:
+        monthly = (
+            df_copy.dropna(subset=[x_col])
+            .groupby(pd.Grouper(key=x_col, freq=freq))
+            .size()
+            .reset_index(name="value")
+        )
     else:
-        if use_count:
-            grouped = (
-                df_copy[x_col].astype(str).value_counts().head(20).sort_index()
-            )
-            monthly = grouped.reset_index()
-            monthly.columns = [x_col, "value"]
-        else:
-            df_copy[y_col] = y_num
-            monthly = df_copy[[x_col, y_col]].dropna().sort_values(by=x_col).head(300)
-            monthly = monthly.rename(columns={y_col: "value"})
+        df_copy[y_col] = y_num
+        monthly = (
+            df_copy.dropna(subset=[x_col, y_col])
+            .groupby(pd.Grouper(key=x_col, freq=freq))[y_col]
+            .sum()
+            .reset_index(name="value")
+        )
 
     if monthly.empty:
         return _empty_figure(f"📈 {title}", "No usable points for line chart.")
@@ -674,13 +978,17 @@ def _auto_line_chart(df, x_col, y_col, title):
         return _empty_figure(f"📈 {title}", "Not enough variation for a trend chart.")
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=monthly[x_col], y=monthly["value"],
-        mode="lines+markers",
-        name=(y_col.replace("_", " ").title() if y_col else "Count"),
-        line=dict(color=THEME["accent_colors"][0], width=2.5),
-        fill="tozeroy", fillcolor="rgba(0, 212, 255, 0.1)"
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=monthly[x_col],
+            y=monthly["value"],
+            mode="lines+markers",
+            name=(y_col.replace("_", " ").title() if y_col else "Count"),
+            line=dict(color=THEME["accent_colors"][0], width=2.5),
+            fill="tozeroy",
+            fillcolor="rgba(0, 212, 255, 0.1)",
+        )
+    )
     _apply_theme(fig, f"📈 {title}")
     return fig
 
@@ -711,14 +1019,21 @@ def _auto_bar_chart(df, x_col, y_col, title):
     if len(agg) < 2:
         return _empty_figure(f"📊 {title}", "Need at least 2 categories for bar chart.")
 
-    fig = go.Figure(go.Bar(
-        x=agg.index, y=agg.values,
-        marker=dict(
-            color=agg.values,
-            colorscale=[[0, THEME["accent_colors"][2]], [1, THEME["accent_colors"][0]]]
-        ),
-        text=[f"{v:,.0f}" for v in agg.values], textposition="auto"
-    ))
+    fig = go.Figure(
+        go.Bar(
+            x=agg.index,
+            y=agg.values,
+            marker=dict(
+                color=agg.values,
+                colorscale=[
+                    [0, THEME["accent_colors"][2]],
+                    [1, THEME["accent_colors"][0]],
+                ],
+            ),
+            text=[f"{v:,.0f}" for v in agg.values],
+            textposition="auto",
+        )
+    )
     _apply_theme(fig, f"📊 {title}")
     return fig
 
@@ -730,12 +1045,16 @@ def _auto_histogram(df, x_col, title):
     x_num = _as_numeric(df[x_col])
     if x_num.notna().sum() > 1:
         x_values = x_num.dropna()
-        fig = go.Figure(go.Histogram(
-            x=x_values, nbinsx=30,
-            marker_color=THEME["accent_colors"][0],
-            marker_line_color=THEME["accent_colors"][3],
-            marker_line_width=1, opacity=0.8
-        ))
+        fig = go.Figure(
+            go.Histogram(
+                x=x_values,
+                nbinsx=30,
+                marker_color=THEME["accent_colors"][0],
+                marker_line_color=THEME["accent_colors"][3],
+                marker_line_width=1,
+                opacity=0.8,
+            )
+        )
         _apply_theme(fig, f"📉 {title}")
         return fig
 
@@ -743,38 +1062,54 @@ def _auto_histogram(df, x_col, title):
     if counts.empty:
         return _empty_figure(f"📉 {title}", "No data available for distribution chart.")
     if len(counts) < 2:
-        return _empty_figure(f"📉 {title}", "Need at least 2 categories for distribution chart.")
+        return _empty_figure(
+            f"📉 {title}", "Need at least 2 categories for distribution chart."
+        )
 
-    fig = go.Figure(go.Bar(
-        x=counts.index,
-        y=counts.values,
-        marker_color=THEME["accent_colors"][0],
-        marker_line_color=THEME["accent_colors"][3],
-        marker_line_width=1,
-        opacity=0.8
-    ))
+    fig = go.Figure(
+        go.Bar(
+            x=counts.index,
+            y=counts.values,
+            marker_color=THEME["accent_colors"][0],
+            marker_line_color=THEME["accent_colors"][3],
+            marker_line_width=1,
+            opacity=0.8,
+        )
+    )
     _apply_theme(fig, f"📉 {title}")
     return fig
 
 
-def _auto_scatter(df, x_col, y_col, title):
+def _auto_scatter(df, x_col, y_col, title, color_col=None):
     if x_col not in df.columns or y_col not in df.columns:
         return _empty_figure(f"🔵 {title}", "Required columns are missing.")
 
-    df_copy = df[[x_col, y_col]].copy()
+    cols = [x_col, y_col]
+    use_color = color_col and color_col in df.columns and df[color_col].nunique() <= 20
+    if use_color:
+        cols.append(color_col)
+
+    df_copy = df[cols].copy()
     df_copy[x_col] = _as_numeric(df_copy[x_col])
     df_copy[y_col] = _as_numeric(df_copy[y_col])
     df_copy = df_copy.dropna(subset=[x_col, y_col])
     if len(df_copy) < 3:
-        return _empty_figure(f"🔵 {title}", "Not enough numeric points for scatter plot.")
+        return _empty_figure(
+            f"🔵 {title}", "Not enough numeric points for scatter plot."
+        )
     if df_copy[x_col].nunique() < 2 or df_copy[y_col].nunique() < 2:
         return _empty_figure(f"🔵 {title}", "Not enough variation for scatter plot.")
 
-    fig = px.scatter(
-        df_copy, x=x_col, y=y_col,
-        color_discrete_sequence=THEME["accent_colors"],
-        opacity=0.7
-    )
+    scatter_kwargs = {
+        "x": x_col,
+        "y": y_col,
+        "color_discrete_sequence": THEME["accent_colors"],
+        "opacity": 0.7,
+    }
+    if use_color:
+        scatter_kwargs["color"] = color_col
+
+    fig = px.scatter(df_copy, **scatter_kwargs)
     _apply_theme(fig, f"🔵 {title}")
     return fig
 
@@ -792,7 +1127,9 @@ def _auto_pie_chart(df, x_col, y_col, title):
         if y_num.notna().sum() == 0:
             values = x_series.value_counts()
         else:
-            df_copy = pd.DataFrame({x_col: x_series, y_col: y_num}).dropna(subset=[y_col])
+            df_copy = pd.DataFrame({x_col: x_series, y_col: y_num}).dropna(
+                subset=[y_col]
+            )
             values = df_copy.groupby(x_col)[y_col].sum().sort_values(ascending=False)
 
     if values.empty:
@@ -800,11 +1137,15 @@ def _auto_pie_chart(df, x_col, y_col, title):
     if len(values) < 2:
         return _empty_figure(f"🍩 {title}", "Need at least 2 categories for pie chart.")
 
-    fig = go.Figure(go.Pie(
-        labels=values.index, values=values.values,
-        hole=0.45, marker=dict(colors=THEME["accent_colors"]),
-        textinfo="label+percent"
-    ))
+    fig = go.Figure(
+        go.Pie(
+            labels=values.index,
+            values=values.values,
+            hole=0.45,
+            marker=dict(colors=THEME["accent_colors"]),
+            textinfo="label+percent",
+        )
+    )
     _apply_theme(fig, f"🍩 {title}")
     return fig
 
@@ -826,9 +1167,11 @@ def _auto_box_chart(df, x_col, y_col, title):
         return _empty_figure(f"📦 {title}", "Need at least 2 categories for box chart.")
 
     fig = px.box(
-        df_copy, x=x_col, y=y_col,
+        df_copy,
+        x=x_col,
+        y=y_col,
         color=x_col,
-        color_discrete_sequence=THEME["accent_colors"]
+        color_discrete_sequence=THEME["accent_colors"],
     )
     _apply_theme(fig, f"📦 {title}")
     return fig
@@ -836,30 +1179,31 @@ def _auto_box_chart(df, x_col, y_col, title):
 
 # ─── New Auto-Chart Types ─────────────────────────────────────────
 
+
 def _auto_heatmap(df, columns, title):
     """Correlation heatmap for numeric columns."""
-    available = [c for c in columns if c in df.columns
-                 and pd.api.types.is_numeric_dtype(df[c])]
+    available = [
+        c for c in columns if c in df.columns and pd.api.types.is_numeric_dtype(df[c])
+    ]
     if len(available) < 3:
         return _empty_figure(f"🔥 {title}", "Need at least 3 numeric columns.")
 
     corr = df[available].corr().round(2)
 
-    fig = go.Figure(go.Heatmap(
-        z=corr.values,
-        x=corr.columns.tolist(),
-        y=corr.index.tolist(),
-        colorscale=[
-            [0.0, "#FF6B6B"],
-            [0.5, "#1A1D23"],
-            [1.0, "#00D4FF"]
-        ],
-        zmin=-1, zmax=1,
-        text=corr.values.round(2),
-        texttemplate="%{text}",
-        textfont=dict(size=10),
-        hoverongaps=False
-    ))
+    fig = go.Figure(
+        go.Heatmap(
+            z=corr.values,
+            x=corr.columns.tolist(),
+            y=corr.index.tolist(),
+            colorscale=[[0.0, "#FF6B6B"], [0.5, "#1A1D23"], [1.0, "#00D4FF"]],
+            zmin=-1,
+            zmax=1,
+            text=corr.values.round(2),
+            texttemplate="%{text}",
+            textfont=dict(size=10),
+            hoverongaps=False,
+        )
+    )
     _apply_theme(fig, f"🔥 {title}")
     fig.update_layout(height=max(400, 50 * len(available)))
     return fig
@@ -885,20 +1229,23 @@ def _auto_stacked_area(df, x_col, y_col, color_col, title):
     # Truncate categories to top 6
     top_cats = df_copy[color_col].value_counts().head(6).index
     df_copy[color_col] = df_copy[color_col].apply(
-        lambda v: v if v in top_cats else "Other")
+        lambda v: v if v in top_cats else "Other"
+    )
 
     # Group by month + category
     df_copy["_period"] = df_copy[x_col].dt.to_period("M").dt.to_timestamp()
-    grouped = (df_copy.groupby(["_period", color_col])[y_col]
-               .sum().reset_index())
+    grouped = df_copy.groupby(["_period", color_col])[y_col].sum().reset_index()
 
     if grouped.empty or grouped["_period"].nunique() < 3:
         return _empty_figure(f"📊 {title}", "Not enough time periods.")
 
     fig = px.area(
-        grouped, x="_period", y=y_col, color=color_col,
+        grouped,
+        x="_period",
+        y=y_col,
+        color=color_col,
         color_discrete_sequence=THEME["accent_colors"],
-        groupnorm=None
+        groupnorm=None,
     )
     _apply_theme(fig, f"📊 {title}")
     fig.update_xaxes(title="Period")
@@ -945,8 +1292,9 @@ def _auto_treemap(df, path_cols, value_col, title):
 
 def _auto_funnel(df, columns, title):
     """Conversion funnel chart."""
-    available = [c for c in columns if c in df.columns
-                 and pd.api.types.is_numeric_dtype(df[c])]
+    available = [
+        c for c in columns if c in df.columns and pd.api.types.is_numeric_dtype(df[c])
+    ]
     if len(available) < 2:
         return _empty_figure(f"🔻 {title}", "Need at least 2 funnel stages.")
 
@@ -962,16 +1310,18 @@ def _auto_funnel(df, columns, title):
     # Sort descending (largest stage first — typical funnel shape)
     stage_values.sort(key=lambda x: x[1], reverse=True)
 
-    fig = go.Figure(go.Funnel(
-        y=[s[0] for s in stage_values],
-        x=[s[1] for s in stage_values],
-        textinfo="value+percent initial+percent previous",
-        marker=dict(
-            color=THEME["accent_colors"][:len(stage_values)],
-            line=dict(width=1, color=THEME["grid_color"])
-        ),
-        connector=dict(line=dict(color=THEME["grid_color"], width=1))
-    ))
+    fig = go.Figure(
+        go.Funnel(
+            y=[s[0] for s in stage_values],
+            x=[s[1] for s in stage_values],
+            textinfo="value+percent initial+percent previous",
+            marker=dict(
+                color=THEME["accent_colors"][: len(stage_values)],
+                line=dict(width=1, color=THEME["grid_color"]),
+            ),
+            connector=dict(line=dict(color=THEME["grid_color"], width=1)),
+        )
+    )
     _apply_theme(fig, f"🔻 {title}")
     return fig
 
@@ -996,36 +1346,38 @@ def _auto_waterfall(df, x_col, y_col, title):
     x_labels = list(agg.index.astype(str)) + ["Total"]
     y_values = list(agg.values) + [agg.sum()]
 
-    fig = go.Figure(go.Waterfall(
-        orientation="v",
-        measure=measures,
-        x=x_labels,
-        y=y_values,
-        textposition="outside",
-        text=[f"{v:,.0f}" for v in y_values],
-        connector=dict(line=dict(color=THEME["grid_color"])),
-        increasing=dict(marker=dict(color=THEME["accent_colors"][2])),
-        decreasing=dict(marker=dict(color=THEME["accent_colors"][1])),
-        totals=dict(marker=dict(color=THEME["accent_colors"][0]))
-    ))
+    fig = go.Figure(
+        go.Waterfall(
+            orientation="v",
+            measure=measures,
+            x=x_labels,
+            y=y_values,
+            textposition="outside",
+            text=[f"{v:,.0f}" for v in y_values],
+            connector=dict(line=dict(color=THEME["grid_color"])),
+            increasing=dict(marker=dict(color=THEME["accent_colors"][2])),
+            decreasing=dict(marker=dict(color=THEME["accent_colors"][1])),
+            totals=dict(marker=dict(color=THEME["accent_colors"][0])),
+        )
+    )
     _apply_theme(fig, f"💧 {title}")
     return fig
 
 
 # ─── ML Visualization Charts ─────────────────────────────────────
 
+
 def anomaly_overlay_chart(
     df: pd.DataFrame,
     x_col: str,
     y_col: str,
     anomaly_col: str = "is_anomaly",
-    score_col: str = "anomaly_score"
+    score_col: str = "anomaly_score",
 ) -> go.Figure:
     """Scatter plot with anomalies highlighted in contrasting color."""
     required = [x_col, y_col, anomaly_col]
     if any(c not in df.columns for c in required):
-        return _empty_figure("🚨 Anomaly Detection",
-                             "Required columns are missing.")
+        return _empty_figure("🚨 Anomaly Detection", "Required columns are missing.")
 
     df_copy = df.copy()
     df_copy[x_col] = _as_numeric(df_copy[x_col])
@@ -1034,35 +1386,36 @@ def anomaly_overlay_chart(
     if len(df_copy) < 5:
         return _empty_figure("🚨 Anomaly Detection", "Not enough data.")
 
-    df_copy["_label"] = df_copy[anomaly_col].map(
-        {True: "⚠ Anomaly", False: "Normal"})
+    df_copy["_label"] = df_copy[anomaly_col].map({True: "⚠ Anomaly", False: "Normal"})
 
     hover_data = [score_col] if score_col in df_copy.columns else None
 
     fig = px.scatter(
-        df_copy, x=x_col, y=y_col, color="_label",
+        df_copy,
+        x=x_col,
+        y=y_col,
+        color="_label",
         color_discrete_map={"⚠ Anomaly": "#FF6B6B", "Normal": "#00D4FF"},
         opacity=0.7,
         hover_data=hover_data,
         size=score_col if score_col in df_copy.columns else None,
-        size_max=14
+        size_max=14,
     )
-    _apply_theme(fig, f"🚨 Anomalies: {x_col.replace('_', ' ').title()} vs "
-                      f"{y_col.replace('_', ' ').title()}")
+    _apply_theme(
+        fig,
+        f"🚨 Anomalies: {x_col.replace('_', ' ').title()} vs "
+        f"{y_col.replace('_', ' ').title()}",
+    )
     return fig
 
 
 def cluster_scatter_chart(
-    df: pd.DataFrame,
-    x_col: str,
-    y_col: str,
-    cluster_col: str = "cluster"
+    df: pd.DataFrame, x_col: str, y_col: str, cluster_col: str = "cluster"
 ) -> go.Figure:
     """2-D scatter colored by cluster assignment."""
     required = [x_col, y_col, cluster_col]
     if any(c not in df.columns for c in required):
-        return _empty_figure("🎯 Customer Clusters",
-                             "Required columns are missing.")
+        return _empty_figure("🎯 Customer Clusters", "Required columns are missing.")
 
     df_copy = df.copy()
     df_copy[x_col] = _as_numeric(df_copy[x_col])
@@ -1074,12 +1427,18 @@ def cluster_scatter_chart(
     df_copy["_cluster"] = "Cluster " + df_copy[cluster_col].astype(str)
 
     fig = px.scatter(
-        df_copy, x=x_col, y=y_col, color="_cluster",
+        df_copy,
+        x=x_col,
+        y=y_col,
+        color="_cluster",
         color_discrete_sequence=THEME["accent_colors"],
-        opacity=0.75
+        opacity=0.75,
     )
-    _apply_theme(fig, f"🎯 Clusters: {x_col.replace('_', ' ').title()} vs "
-                      f"{y_col.replace('_', ' ').title()}")
+    _apply_theme(
+        fig,
+        f"🎯 Clusters: {x_col.replace('_', ' ').title()} vs "
+        f"{y_col.replace('_', ' ').title()}",
+    )
     return fig
 
 
@@ -1088,7 +1447,7 @@ def trend_forecast_chart(
     forecast_df: pd.DataFrame = None,
     date_col: str = "date",
     value_col: str = "value",
-    title: str = "Trend & Forecast"
+    title: str = "Trend & Forecast",
 ) -> go.Figure:
     """Line chart with historical trend + optional linear forecast overlay."""
     if date_col not in historical_df.columns or value_col not in historical_df.columns:
@@ -1097,16 +1456,18 @@ def trend_forecast_chart(
     fig = go.Figure()
 
     # Historical
-    fig.add_trace(go.Scatter(
-        x=historical_df[date_col],
-        y=historical_df[value_col],
-        mode="lines+markers",
-        name="Actual",
-        line=dict(color=THEME["accent_colors"][0], width=2.5),
-        marker=dict(size=5),
-        fill="tozeroy",
-        fillcolor="rgba(0, 212, 255, 0.08)"
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=historical_df[date_col],
+            y=historical_df[value_col],
+            mode="lines+markers",
+            name="Actual",
+            line=dict(color=THEME["accent_colors"][0], width=2.5),
+            marker=dict(size=5),
+            fill="tozeroy",
+            fillcolor="rgba(0, 212, 255, 0.08)",
+        )
+    )
 
     # Forecast overlay
     if forecast_df is not None and not forecast_df.empty:
@@ -1114,15 +1475,16 @@ def trend_forecast_chart(
         if fc.empty and "type" not in forecast_df.columns:
             fc = forecast_df
         if not fc.empty:
-            fig.add_trace(go.Scatter(
-                x=fc[date_col],
-                y=fc[value_col],
-                mode="lines+markers",
-                name="Forecast",
-                line=dict(color=THEME["accent_colors"][3], width=2.5,
-                          dash="dash"),
-                marker=dict(size=7, symbol="diamond")
-            ))
+            fig.add_trace(
+                go.Scatter(
+                    x=fc[date_col],
+                    y=fc[value_col],
+                    mode="lines+markers",
+                    name="Forecast",
+                    line=dict(color=THEME["accent_colors"][3], width=2.5, dash="dash"),
+                    marker=dict(size=7, symbol="diamond"),
+                )
+            )
 
     _apply_theme(fig, f"📈 {title}")
     fig.update_xaxes(title="Date")
@@ -1130,8 +1492,9 @@ def trend_forecast_chart(
     return fig
 
 
-def auto_generate_charts(df: pd.DataFrame, chart_specs: list,
-                         max_charts: int = 12) -> list:
+def auto_generate_charts(
+    df: pd.DataFrame, chart_specs: list, max_charts: int = 12
+) -> list:
     """
     Generate all recommended charts for a dataset.
     Returns list of (title, figure) tuples.
@@ -1161,7 +1524,12 @@ def auto_generate_charts(df: pd.DataFrame, chart_specs: list,
     for spec in ranked_specs:
         fig = auto_chart(df, spec)
         title = spec.get("title", "Chart")
-        signature = (spec.get("type"), spec.get("x"), spec.get("y"))
+        signature = (
+            spec.get("type"),
+            spec.get("x"),
+            spec.get("y"),
+            tuple(spec.get("columns", []) or []),
+        )
 
         if (
             fig is not None

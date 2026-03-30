@@ -9,15 +9,31 @@ Uses structured prompt engineering for consistent, high-quality LLM outputs.
 class PromptTemplates:
     """Repository of prompt templates for the multi-agent system."""
 
+    MARKDOWN_OUTPUT_RULES = (
+        "Output markdown only. Keep headings short. Use bullet points instead of long paragraphs. "
+        "Every key claim must reference at least one concrete value, rate, count, column name, or ranking from the provided context. "
+        "If evidence is weak or missing, say 'Insufficient evidence in provided dataset context.'"
+    )
+
+    ANALYST_SECTION_SCHEMA = (
+        "Return markdown with these sections in order:\n"
+        "## Executive Summary\n"
+        "## Evidence Snapshot\n"
+        "## Key Findings\n"
+        "## Risks and Watchouts\n"
+        "## Recommended Actions\n"
+        "## Additional Data That Would Help"
+    )
+
     # ─── System Prompts ────────────────────────────────────────────
 
     SYSTEM_ANALYST = (
         "You are a senior data analyst AI agent working in a multi-agent decision "
         "intelligence platform. You analyze structured business and technology data "
         "to generate actionable insights. Be specific, cite data points, and provide "
-        "concrete recommendations. Use clear markdown formatting with headers, "
-        "bullet points, and bold for emphasis. Always ground your analysis in the "
-        "actual data provided."
+        "concrete recommendations. Use clean markdown formatting and concise sections. "
+        "Always ground your analysis in the actual data provided. "
+        + MARKDOWN_OUTPUT_RULES
     )
 
     SYSTEM_ANALYST_STRICT = (
@@ -34,133 +50,121 @@ class PromptTemplates:
         "multiple analyst agents (Sales, Marketing, Customer, and Tech) into a "
         "unified strategic recommendation. Focus on cross-functional synergies, "
         "risk assessment, and prioritized action items. Your output should be "
-        "executive-ready with clear sections and data-backed conclusions."
+        "executive-ready with clear sections and data-backed conclusions. "
+        + MARKDOWN_OUTPUT_RULES
     )
+
+    @staticmethod
+    def _analyst_prompt(
+        title: str,
+        kpis: str,
+        data_summary: str,
+        required_analysis: str,
+        extra_context: str = "",
+    ) -> str:
+        extra = f"\n## Additional Context\n{extra_context}\n" if extra_context else ""
+        return f"""{title}
+
+## KPI Snapshot
+{kpis}
+
+## Dataset Summary
+{data_summary}
+{extra}
+## Required Analysis
+{required_analysis}
+
+## Output Format
+{PromptTemplates.ANALYST_SECTION_SCHEMA}
+
+Rules:
+- Keep the Executive Summary to 2-4 bullets.
+- In Evidence Snapshot, list 4-6 data-backed bullets only.
+- In Recommended Actions, provide 3-5 actions with priority tags such as High / Medium / Low.
+- Avoid generic phrases like 'optimize operations' unless you explain exactly what to change.
+- Do not use external facts, benchmarks, or assumptions beyond the provided context.
+"""
 
     # ─── Sales Agent Prompts ───────────────────────────────────────
 
     @staticmethod
     def sales_analysis(kpis: str, data_summary: str) -> str:
-        return f"""Analyze the following sales performance data and provide actionable insights.
-
-## Key Performance Indicators
-{kpis}
-
-## Data Summary
-{data_summary}
-
-## Required Analysis
-Please provide a comprehensive sales analysis covering:
-
-1. **Revenue Performance**: Overall revenue health, trends, and notable patterns.
-2. **Product Analysis**: Which products/categories are driving growth? Which are underperforming?
-3. **Regional Breakdown**: Compare performance across regions. Identify growth opportunities.
-4. **Profit Margins**: Analyze margin distribution. Flag any concerning trends.
-5. **Seasonal Patterns**: Identify any seasonality in the data.
-6. **Key Risks**: What risks or warning signs do you see?
-7. **Recommendations**: Provide 3-5 specific, prioritized action items with expected impact.
-
-Be specific with numbers and percentages. Reference actual data points."""
+        required = (
+            "1. Revenue performance: explain overall revenue health, growth, concentration, and volatility.\n"
+            "2. Product and category mix: identify top and underperforming products/categories.\n"
+            "3. Regional or channel breakdown: compare performance across major groupings.\n"
+            "4. Margin and discount behavior: flag any concerning margin compression or over-discounting.\n"
+            "5. Trend signals: explain seasonality, acceleration, slowdown, or instability if present.\n"
+            "6. Risks and action plan: include specific operational or commercial next steps."
+        )
+        return PromptTemplates._analyst_prompt(
+            "Analyze the sales dataset and produce an operator-ready revenue report.",
+            kpis,
+            data_summary,
+            required,
+        )
 
     # ─── Marketing Agent Prompts ───────────────────────────────────
 
     @staticmethod
     def marketing_analysis(kpis: str, data_summary: str) -> str:
-        return f"""Analyze the following marketing campaign data and provide strategic insights.
-
-## Key Performance Indicators
-{kpis}
-
-## Data Summary
-{data_summary}
-
-## Required Analysis
-Please provide a comprehensive marketing analysis covering:
-
-1. **Campaign ROI**: Which campaign types deliver the best return on investment?
-2. **Channel Effectiveness**: Compare channels by CTR, conversion rate, and ROI.
-3. **Cost Analysis**: Evaluate CPC and cost efficiency across channels.
-4. **Conversion Funnel**: Analyze the impression → click → conversion pipeline.
-5. **Budget Optimization**: Where should budget be reallocated for maximum impact?
-6. **Underperformers**: Identify campaigns or channels that should be scaled back.
-7. **Recommendations**: Provide 3-5 specific, data-backed marketing recommendations.
-
-Use specific metrics and comparisons in your analysis."""
+        required = (
+            "1. ROI and efficiency: identify the best and worst campaign/channel outcomes.\n"
+            "2. Funnel quality: explain where the biggest drop-offs likely occur.\n"
+            "3. Cost structure: compare spend, CPC, CPM, and conversion efficiency.\n"
+            "4. Reallocation opportunities: be explicit about what to scale up or down.\n"
+            "5. Risks and action plan: include 3-5 tactical moves with expected upside."
+        )
+        return PromptTemplates._analyst_prompt(
+            "Analyze the marketing dataset and produce a performance allocation report.",
+            kpis,
+            data_summary,
+            required,
+        )
 
     # ─── Customer Agent Prompts ────────────────────────────────────
 
     @staticmethod
     def customer_analysis(kpis: str, data_summary: str, cluster_info: str = "") -> str:
-        cluster_section = ""
-        if cluster_info:
-            cluster_section = f"""
-## ML Clustering Results
-{cluster_info}
-
-Interpret the clustering results and explain what each customer cluster represents.
-"""
-        return f"""Analyze the following customer data and provide segmentation insights.
-
-## Key Performance Indicators
-{kpis}
-
-## Data Summary
-{data_summary}
-{cluster_section}
-## Required Analysis
-Please provide a comprehensive customer analysis covering:
-
-1. **Customer Segments**: Characterize each segment by value, behavior, and risk profile.
-2. **Churn Risk Assessment**: Which segments are at highest risk? What are the warning signs?
-3. **Lifetime Value Distribution**: Analyze LTV across segments and industries.
-4. **Satisfaction & Engagement**: How do satisfaction and engagement scores correlate with retention?
-5. **High-Value Customers**: What defines your most valuable customers?
-6. **At-Risk Customers**: Profile the at-risk segment and suggest intervention strategies.
-7. **Recommendations**: Provide 3-5 specific customer retention and growth strategies.
-
-Ground your analysis in the actual data metrics provided."""
+        required = (
+            "1. Customer segmentation: characterize segments or clusters by value, behavior, and risk.\n"
+            "2. Churn and retention: identify at-risk cohorts and the most useful intervention levers.\n"
+            "3. Lifetime value and engagement: explain which variables appear tied to stronger customer value.\n"
+            "4. High-value vs at-risk profiles: contrast them clearly.\n"
+            "5. Action plan: provide 3-5 retention or growth actions with target cohorts."
+        )
+        return PromptTemplates._analyst_prompt(
+            "Analyze the customer dataset and produce a segmentation and retention report.",
+            kpis,
+            data_summary,
+            required,
+            extra_context=cluster_info,
+        )
 
     # ─── Tech/GitHub Agent Prompts ─────────────────────────────────
 
     @staticmethod
     def tech_analysis(kpis: str, data_summary: str, anomaly_info: str = "") -> str:
-        anomaly_section = ""
-        if anomaly_info:
-            anomaly_section = f"""
-## Anomaly Detection Results
-{anomaly_info}
-
-Interpret the detected anomalies and explain their significance.
-"""
-        return f"""Analyze the following GitHub repository / technology data and provide insights.
-
-## Key Performance Indicators
-{kpis}
-
-## Data Summary
-{data_summary}
-{anomaly_section}
-## Required Analysis
-Please provide a comprehensive technology landscape analysis covering:
-
-1. **Language Trends**: Which programming languages are most popular? Any emerging trends?
-2. **Repository Quality**: What characterizes high-quality repos (stars, CI/CD, docs)?
-3. **Community Health**: Analyze contributor activity and issue management.
-4. **Open Source Ecosystem**: What patterns emerge in the open-source landscape?
-5. **Technology Adoption**: Which topics/areas show the most activity?
-6. **Quality Correlation**: How do CI/CD and documentation relate to repo success?
-7. **Recommendations**: Provide 3-5 insights for technology strategy and investment.
-
-Use specific data points and comparisons in your analysis."""
+        required = (
+            "1. Technology landscape: explain the main language/framework/topic patterns.\n"
+            "2. Repository quality: identify what seems associated with repo success or health.\n"
+            "3. Community and maintenance: comment on contributors, issues, documentation, and CI/CD.\n"
+            "4. Outliers/anomalies: explain whether any unusual repositories matter strategically.\n"
+            "5. Action plan: provide 3-5 recommendations for tech investment or engineering focus."
+        )
+        return PromptTemplates._analyst_prompt(
+            "Analyze the technology dataset and produce a platform health and ecosystem report.",
+            kpis,
+            data_summary,
+            required,
+            extra_context=anomaly_info,
+        )
 
     # ─── Strategy Agent Prompts ────────────────────────────────────
 
     @staticmethod
     def strategic_synthesis(
-        sales_report: str,
-        marketing_report: str,
-        customer_report: str,
-        tech_report: str
+        sales_report: str, marketing_report: str, customer_report: str, tech_report: str
     ) -> str:
         return f"""You are the Chief Strategy Agent. Synthesize the following analyst reports
 into a unified strategic recommendation.
@@ -177,26 +181,23 @@ into a unified strategic recommendation.
 ## Tech Analyst Report
 {tech_report}
 
-## Required Strategic Output
+## Output Format
+Return markdown with these sections in order:
+## Executive Summary
+## Cross-Functional Signals
+## Top Opportunities
+## Critical Risks
+## Prioritized Action Plan
+## Resource Allocation Guidance
+## Success Metrics
 
-Create an executive-level strategic recommendation covering:
-
-1. **Executive Summary**: 2-3 sentence overview of the organization's position.
-2. **Cross-Functional Insights**: Identify synergies and conflicts between departments.
-3. **Top Opportunities** (ranked by impact):
-   - What are the 3 biggest growth opportunities?
-   - How should resources be prioritized?
-4. **Critical Risks**:
-   - What are the top risks across all areas?
-   - What mitigation strategies are recommended?
-5. **Strategic Recommendations** (prioritized action plan):
-   - Immediate actions (0-30 days)
-   - Short-term initiatives (30-90 days)
-   - Long-term strategy (90-365 days)
-6. **Resource Allocation**: How should budget and talent be distributed?
-7. **Success Metrics**: What KPIs should be tracked to measure progress?
-
-Make this actionable and specific. Reference data from all analyst reports."""
+Rules:
+- Top Opportunities: exactly 3 ranked items.
+- Critical Risks: exactly 3 ranked items.
+- Prioritized Action Plan: split into Immediate (0-30 days), Short Term (30-90 days), Longer Term (90-365 days).
+- Success Metrics: 5-8 KPI bullets max.
+- Reference evidence from at least 2 analyst reports in each major section.
+- Keep it specific, board-ready, and under 900 words."""
 
     # ─── Single Insight Prompts ────────────────────────────────────
 
@@ -224,11 +225,7 @@ Rules:
 - Keep total length under 350 words."""
 
     @staticmethod
-    def repair_insight(
-        data_summary: str,
-        question: str,
-        previous_output: str
-    ) -> str:
+    def repair_insight(data_summary: str, question: str, previous_output: str) -> str:
         return f"""Rewrite the prior answer to remove hallucinations and formatting issues.
 
 ## Dataset Context
@@ -274,23 +271,26 @@ prioritized recommendations.
 {all_insights}
 
 ## Output Format
-Generate exactly 5-7 recommendations, each with:
-- **Title**: Clear action item
-- **Priority**: High / Medium / Low
-- **Impact**: Expected business impact
-- **Effort**: Implementation effort (Low/Medium/High)
-- **Details**: 2-3 sentences explaining the recommendation
+Return markdown with one top-level section:
+## Prioritized Recommendations
 
-Rank by priority and expected impact."""
+Generate exactly 5 recommendations. For each one use this template:
+### Recommendation <number>: <short title>
+- Priority: High / Medium / Low
+- Impact: <specific business outcome>
+- Effort: Low / Medium / High
+- Why this matters: <1-2 bullets grounded in the provided insights>
+- What to do next: <1-2 bullets with concrete execution steps>
+
+Rules:
+- Rank by priority and expected business impact.
+- Avoid repeating the same recommendation with different wording.
+- Keep the whole output under 700 words."""
 
     # ─── Dynamic / Universal Analysis Prompt ───────────────────
 
     @staticmethod
-    def dynamic_analysis(
-        detected_type: str,
-        context: str,
-        ml_signals: str = ""
-    ) -> str:
+    def dynamic_analysis(detected_type: str, context: str, ml_signals: str = "") -> str:
         """
         Universal analysis prompt that works with any auto-detected dataset.
         This is the primary entrypoint for analyzing unknown datasets.
@@ -304,17 +304,18 @@ Rank by priority and expected impact."""
 ## Dataset Context
 {context}
 {ml_section}
+## Output Format
+{PromptTemplates.ANALYST_SECTION_SCHEMA}
+
 ## Required Analysis
-Provide a comprehensive analysis covering:
+1. Explain the business story of the dataset in plain language.
+2. List the most important patterns, rankings, changes, or anomalies.
+3. Separate what looks healthy from what looks weak or risky.
+4. Turn the evidence into 3-5 specific actions.
+5. State what additional columns or history would improve confidence.
 
-1. **Overview**: What does this data tell us? Summarize the key story.
-2. **Top Findings**: 3-5 most important patterns or insights found in the data.
-3. **Performance Metrics**: Analyze the key metrics — what's performing well vs poorly?
-4. **Trends & Patterns**: Any notable trends, correlations, or seasonal patterns?
-5. **Risks & Concerns**: What warning signs or risks are visible in the data?
-6. **Recommendations**: Provide 3-5 specific, data-backed action items.
-
-Be specific with numbers. Reference actual data points from the context above.
-Keep the response focused and concise.
-
-Do not use external facts. If context is insufficient, state exactly what is missing."""
+Rules:
+- Use the detected dataset type only as context, not as a license to invent missing fields.
+- Be specific with numbers and column names from the context above.
+- Keep the response focused and concise.
+- Do not use external facts. If context is insufficient, state exactly what is missing."""

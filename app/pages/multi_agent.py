@@ -1,193 +1,203 @@
-"""
-Multi-Agent Analysis Page
-==========================
-Run all agents collaboratively, show pipeline progress,
-and display the combined strategic analysis.
-"""
+"""Dash multi-agent analysis page."""
 
 import os
 import sys
-import streamlit as st
-import time
 
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from dash import dcc, html
+from dash.dependencies import Input, Output, State
+import dash_bootstrap_components as dbc
+
+project_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from llm.llm_client import LLMClient
 from agents.orchestrator import AgentOrchestrator
-from components.ui_elements import agent_report_panel, insight_card
-from components.theme import apply_dark_page_style
+from app import state
+from llm.llm_client import LLMClient
+from llm.prompts import PromptTemplates
+from llm.response_parser import ResponseParser
+from utils.dataset_detector import DatasetDetector
+
+
+def _normalize_for_agents(datasets):
+    normalized = {}
+    for name, df in datasets.items():
+        detector = DatasetDetector(df, name)
+        dtype = detector.detected_type
+        if dtype == "sales" and "sales" not in normalized:
+            normalized["sales"] = df
+        elif dtype == "marketing" and "marketing" not in normalized:
+            normalized["marketing"] = df
+        elif dtype == "customers" and "customers" not in normalized:
+            normalized["customers"] = df
+        elif dtype == "tech" and "github" not in normalized:
+            normalized["github"] = df
+
+    for name, df in datasets.items():
+        lowered = name.lower()
+        if lowered == "github" and "github" not in normalized:
+            normalized["github"] = df
+    return normalized
+
+
+def _generic_dataset_reports(datasets, matched_keys):
+    reports = {}
+    client = LLMClient(request_timeout=45)
+    parser = ResponseParser()
+    for name, df in datasets.items():
+        detector = DatasetDetector(df, name)
+        if detector.detected_type in {"sales", "marketing", "customers", "tech"}:
+            if detector.detected_type == "tech":
+                mapped_key = "github"
+            else:
+                mapped_key = detector.detected_type
+            if mapped_key in matched_keys:
+                continue
+
+        prompt = PromptTemplates.dynamic_analysis(
+            detected_type=detector.detected_type,
+            context=detector.get_analysis_context(),
+        )
+        report = client.generate(
+            prompt=prompt,
+            system_prompt=PromptTemplates.SYSTEM_ANALYST_STRICT,
+            temperature=0.2,
+        )
+        report = parser.clean_response(report)
+        reports[name] = report
+    return reports
+
+
+def _render_result_cards(result):
+    reports = result.get("reports", {})
+    strategic = result.get("strategic_report") or ""
+    recommendations = result.get("recommendations") or ""
+    status = result.get("agent_status", {})
+    metadata = result.get("metadata", {})
+
+    generic_reports = result.get("generic_reports", {})
+
+    return html.Div(
+        [
+            dbc.Alert(
+                f"Run finished in {metadata.get('total_execution_time', 0)}s using model {metadata.get('llm_model', 'unknown')}",
+                color="success",
+            ),
+            dbc.Card(
+                dbc.CardBody(
+                    [
+                        html.H5("Pipeline Status"),
+                        html.Ul(
+                            [
+                                html.Li(f"{agent}: {agent_status}")
+                                for agent, agent_status in status.items()
+                            ]
+                        ),
+                    ]
+                ),
+                className="mb-3",
+            ),
+            dbc.Accordion(
+                [
+                    dbc.AccordionItem(
+                        dcc.Markdown(text), title=f"{name.title()} Report"
+                    )
+                    for name, text in reports.items()
+                ]
+                + [
+                    dbc.AccordionItem(
+                        dcc.Markdown(text), title=f"{name.title()} Generic Report"
+                    )
+                    for name, text in generic_reports.items()
+                ]
+                + [
+                    dbc.AccordionItem(
+                        dcc.Markdown(strategic), title="Strategic Synthesis"
+                    ),
+                    dbc.AccordionItem(
+                        dcc.Markdown(recommendations), title="Recommendations"
+                    ),
+                ],
+                start_collapsed=True,
+            ),
+        ]
+    )
 
 
 def render():
-    """Render the Multi-Agent Analysis page."""
-    apply_dark_page_style()
-    st.markdown("# 🔗 Multi-Agent Collaborative Analysis")
-    st.markdown(
-        "Run the full AI analyst team: **Sales → Marketing → Customer → Tech → Strategy**. "
-        "Each agent uses LLM reasoning enhanced with optional ML signals."
-    )
-    st.markdown("---")
-
-    if "datasets" not in st.session_state or not st.session_state["datasets"]:
-        st.warning("⚠️ No datasets loaded. Go to **Data Upload** to load data.")
-        return
-
-    datasets = st.session_state["datasets"]
-
-    # ─── Configuration ─────────────────────────────────────────
-
-    st.markdown("### ⚙️ Analysis Configuration")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        include_ml = st.checkbox("Enable ML Signals", value=True,
-                                 help="Clustering, anomaly detection, trend analysis")
-    with col2:
-        n_clusters = st.slider("Customer Clusters", 2, 8, 4)
-    with col3:
-        contamination = st.slider("Anomaly Sensitivity", 0.05, 0.3, 0.1, 0.05)
-
-    st.markdown("---")
-
-    # ─── Agent Pipeline Visualization ──────────────────────────
-
-    st.markdown("### 🤖 Agent Team")
-    agent_cols = st.columns(5)
-    agents_info = [
-        ("📊", "Sales Analyst", "Revenue & product trends"),
-        ("🎯", "Marketing Analyst", "Campaign ROI & channels"),
-        ("👥", "Customer Analyst", "Segments & churn risk"),
-        ("💻", "Tech Analyst", "GitHub & code quality"),
-        ("🧠", "Strategy Agent", "Unified recommendations")
-    ]
-    for i, (icon, name, desc) in enumerate(agents_info):
-        with agent_cols[i]:
-            st.markdown(f"""
-            <div style="
-                background: #1A1D23;
-                border-radius: 12px;
-                padding: 15px;
-                text-align: center;
-                border: 1px solid #2D3139;
-            ">
-                <div style="font-size: 2rem;">{icon}</div>
-                <div style="color: #00D4FF; font-weight: 600; font-size: 0.85rem;">{name}</div>
-                <div style="color: #8B949E; font-size: 0.75rem;">{desc}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    # ─── Run Analysis ──────────────────────────────────────────
-
-    if st.button("🚀 Run Full Multi-Agent Analysis", type="primary"):
-        # Initialize LLM and orchestrator
-        if "llm_client" not in st.session_state:
-            st.session_state["llm_client"] = LLMClient()
-
-        orchestrator = AgentOrchestrator(st.session_state["llm_client"])
-
-        # Progress tracking
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        step = 0
-        total_steps = 6  # 4 agents + strategy + recommendations
-
-        def progress_callback(agent_name: str, status: str):
-            nonlocal step
-            step += 1
-            progress_bar.progress(min(step / total_steps, 1.0))
-            status_text.markdown(f"**{agent_name}**: {status}")
-
-        # Run the pipeline
-        with st.spinner("Running multi-agent analysis pipeline..."):
-            results = orchestrator.run_full_analysis(
-                datasets=datasets,
-                include_ml=include_ml,
-                progress_callback=progress_callback
-            )
-
-        progress_bar.progress(1.0)
-        status_text.markdown("**✅ All agents complete!**")
-
-        # Store results
-        st.session_state["multi_agent_results"] = results
-        st.session_state["orchestrator"] = orchestrator
-
-    # ─── Display Results ───────────────────────────────────────
-
-    if "multi_agent_results" in st.session_state:
-        results = st.session_state["multi_agent_results"]
-
-        st.markdown("---")
-        st.markdown("## 📊 Agent Reports")
-
-        # Execution metadata
-        meta = results.get("metadata", {})
-        st.caption(
-            f"⏱️ Total time: {meta.get('total_execution_time', 0)}s | "
-            f"🤖 Model: {meta.get('llm_model', 'N/A')} | "
-            f"📊 Agents: {len(meta.get('agents_run', []))}"
+    datasets = state.get_datasets()
+    if not datasets:
+        return html.Div(
+            [
+                html.H2("🔗 Multi-Agent Analysis"),
+                dbc.Alert(
+                    "No datasets loaded yet. Go to Data Upload first.", color="warning"
+                ),
+            ],
+            className="p-3",
         )
 
-        # Individual agent reports
-        reports = results.get("reports", {})
+    compatible = _normalize_for_agents(datasets)
+    result = state.get_last_multi_agent_result()
 
-        agent_names = {
-            "sales": "📊 Sales Analyst",
-            "marketing": "🎯 Marketing Analyst",
-            "customers": "👥 Customer Analyst",
-            "tech": "💻 Tech Analyst"
-        }
+    return html.Div(
+        [
+            html.H2("🔗 Multi-Agent Analysis"),
+            html.P(
+                "Run the specialist analyst agents, then synthesize the reports through the strategy agent."
+            ),
+            dbc.Alert(
+                "Compatible datasets detected: "
+                + (", ".join(sorted(compatible.keys())) if compatible else "none"),
+                color="dark",
+            ),
+            dbc.Button(
+                "Run Full Analysis",
+                id="multi-agent-run-btn",
+                color="primary",
+                className="mb-3",
+            ),
+            html.Div(id="multi-agent-status", className="mb-3"),
+            html.Div(
+                id="multi-agent-output",
+                children=_render_result_cards(result) if result else html.Div(),
+            ),
+        ],
+        className="p-3",
+    )
 
-        for key, display_name in agent_names.items():
-            if key in reports:
-                agent_meta = meta.get("agent_metadata", {}).get(key, {})
-                exec_time = agent_meta.get("execution_time_seconds", 0)
-                agent_report_panel(
-                    agent_name=display_name,
-                    report=reports[key],
-                    execution_time=exec_time
-                )
 
-        # ─── Strategic Report ──────────────────────────────────
+def register_callbacks(app):
+    @app.callback(
+        [
+            Output("multi-agent-status", "children"),
+            Output("multi-agent-output", "children"),
+        ],
+        Input("multi-agent-run-btn", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def run_multi_agent(n_clicks):
+        try:
+            datasets = _normalize_for_agents(state.get_datasets())
+            if not datasets:
+                return dbc.Alert(
+                    "No compatible datasets detected for the specialist agents.",
+                    color="danger",
+                ), html.Div()
 
-        st.markdown("---")
-        st.markdown("## 🧠 Strategic Synthesis")
-
-        strategic_report = results.get("strategic_report")
-        if strategic_report:
-            insight_card(
-                title="Unified Strategic Analysis",
-                content="",
-                icon="🧠"
+            orchestrator = AgentOrchestrator(LLMClient(request_timeout=45))
+            result = orchestrator.run_full_analysis(datasets, include_ml=True)
+            generic_reports = _generic_dataset_reports(
+                state.get_datasets(), set(datasets.keys())
             )
-            st.markdown(strategic_report)
-
-        # ─── Recommendations ──────────────────────────────────
-
-        st.markdown("---")
-        st.markdown("## 🎯 Actionable Recommendations")
-
-        recommendations = results.get("recommendations")
-        if recommendations:
-            st.markdown(recommendations)
-
-            # Download full report
-            full_report = "# Multi-Agent Analysis Report\n\n"
-            for key, report in reports.items():
-                full_report += f"## {key.title()} Analysis\n\n{report}\n\n---\n\n"
-            full_report += f"## Strategic Synthesis\n\n{strategic_report}\n\n---\n\n"
-            full_report += f"## Recommendations\n\n{recommendations}\n"
-
-            st.download_button(
-                "📥 Download Full Report",
-                full_report,
-                file_name="multi_agent_analysis_report.md",
-                mime="text/markdown"
-            )
-
-
-if __name__ == "__main__":
-    render()
+            if generic_reports:
+                result["generic_reports"] = generic_reports
+            state.set_last_multi_agent_result(result)
+            state.set_last_recommendations(result.get("recommendations") or "")
+            return dbc.Alert(
+                "Multi-agent analysis completed.", color="success"
+            ), _render_result_cards(result)
+        except Exception as e:
+            return dbc.Alert(f"Multi-agent analysis failed: {e}", color="danger"), html.Div()

@@ -55,9 +55,12 @@ class LLMClient:
             "OLLAMA_BASE_URL", "http://localhost:11434"
         )
         self.temperature = temperature or float(os.getenv("LLM_TEMPERATURE", "0.3"))
-        self.request_timeout = request_timeout or float(
-            os.getenv("OLLAMA_TIMEOUT", "180")
+        timeout_value = (
+            request_timeout
+            if request_timeout is not None
+            else float(os.getenv("OLLAMA_TIMEOUT", "60"))
         )
+        self.request_timeout = max(15.0, float(timeout_value))
 
         if OLLAMA_AVAILABLE:
             self.client = ollama.Client(host=self.base_url)
@@ -99,7 +102,7 @@ class LLMClient:
         prompt: str,
         system_prompt: Optional[str] = None,
         temperature: Optional[float] = None,
-        max_tokens: int = 2048,
+        max_tokens: int = 1024,
     ) -> str:
         """
         Generate a response from the LLM.
@@ -155,8 +158,9 @@ class LLMClient:
             # Retry once with smaller generation budget before falling back.
             retry_tokens = min(max_tokens, 1024)
             retry_tokens = max(512, retry_tokens)
+            retry_timeout = max(30, min(self.request_timeout, 90))
             print(
-                f"⚠️ Ollama timed out at {self.request_timeout:.0f}s; retrying with num_predict={retry_tokens}."
+                f"⚠️ Ollama timed out at {self.request_timeout:.0f}s; retrying with num_predict={retry_tokens} (timeout={retry_timeout:.0f}s)."
             )
             try:
                 start_time = time.time()
@@ -170,7 +174,7 @@ class LLMClient:
                         "num_gpu": 999,
                         "num_ctx": 4096,
                     },
-                    timeout=max(self.request_timeout, 240),
+                    timeout=retry_timeout,
                 )
             except Exception as e:
                 print(f"⚠️ LLM generation error after retry: {e}")
@@ -200,7 +204,7 @@ class LLMClient:
         prompt: str,
         system_prompt: Optional[str] = None,
         temperature: Optional[float] = None,
-        max_tokens: int = 2048,
+        max_tokens: int = 1024,
     ) -> Generator[str, None, None]:
         """
         Stream a response from the LLM token-by-token.

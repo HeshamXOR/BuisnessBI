@@ -1,135 +1,275 @@
-"""
-Data Overview Page
-===================
-Display summary statistics, shapes, dtypes, and data quality for all loaded datasets.
-"""
+"""Dash data overview page."""
 
+import json
 import os
 import sys
-import streamlit as st
+from typing import Any
+
+from dash import dash_table, dcc, html
+import dash_bootstrap_components as dbc
 import pandas as pd
 
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+project_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+from app import state
+from components.charts import auto_chart, chart_has_meaningful_data
+from utils.analysis import get_summary_statistics
 from utils.data_loader import get_dataset_info
-from utils.analysis import get_summary_statistics, compute_correlation_matrix
-from components.ui_elements import section_header
-from components.theme import apply_dark_page_style
+from utils.dataset_detector import DatasetDetector
+
+
+def _metric_card(label: str, value: str) -> dbc.Col:
+    return dbc.Col(
+        dbc.Card(
+            dbc.CardBody(
+                [
+                    html.Small(label, className="text-muted"),
+                    html.Div(value, className="metric-value"),
+                ]
+            ),
+            className="mb-3",
+        ),
+        width=3,
+    )
+
+
+def _table_from_df(df: pd.DataFrame, page_size: int = 10):
+    safe_df = df.copy()
+    safe_df.columns = [str(c) for c in safe_df.columns]
+
+    records = [
+        {column: _to_dash_primitive(value) for column, value in row.items()}
+        for row in safe_df.to_dict("records")
+    ]
+
+    return dash_table.DataTable(
+        columns=[{"name": c, "id": c} for c in safe_df.columns],
+        data=records,
+        page_size=page_size,
+        style_table={"overflowX": "auto"},
+        style_cell={
+            "backgroundColor": "#1A2336",
+            "color": "#F8FAFC",
+            "border": "1px solid #2D3A52",
+            "textAlign": "left",
+            "fontFamily": "Inter, sans-serif",
+            "maxWidth": "240px",
+            "whiteSpace": "normal",
+        },
+        style_header={"backgroundColor": "#121A2B", "fontWeight": "600"},
+    )
+
+
+def _to_dash_primitive(value: Any):
+    """Convert DataFrame values to DataTable-compatible primitives."""
+    if value is None:
+        return ""
+
+    if isinstance(value, (str, int, bool)):
+        return value
+
+    if isinstance(value, float):
+        if pd.isna(value) or value == float("inf") or value == float("-inf"):
+            return ""
+        return value
+
+    if isinstance(value, pd.Timestamp):
+        return value.isoformat()
+
+    if hasattr(value, "item"):
+        try:
+            return _to_dash_primitive(value.item())
+        except Exception:
+            pass
+
+    if isinstance(value, dict):
+        return json.dumps(value, ensure_ascii=False)
+
+    if isinstance(value, (list, tuple, set)):
+        return json.dumps(list(value), ensure_ascii=False)
+
+    try:
+        if pd.isna(value):
+            return ""
+    except Exception:
+        pass
+
+    return str(value)
+
+
+def _quality_summary(df: pd.DataFrame, info: dict, detector: DatasetDetector):
+    missing_total = sum(info["missing_values"].values())
+    duplicate_rows = int(df.duplicated().sum())
+    widest_category = max(
+        (df[col].nunique() for col in detector.categorical_columns), default=0
+    )
+    return dbc.Row(
+        [
+            _metric_card(
+                "Missing %",
+                f"{round(missing_total / max(len(df) * max(len(df.columns), 1), 1) * 100, 2)}%",
+            ),
+            _metric_card("Duplicates", f"{duplicate_rows:,}"),
+            _metric_card("Numeric Columns", str(len(detector.numeric_columns))),
+            _metric_card("Largest Category Set", str(widest_category)),
+        ]
+    )
 
 
 def render():
-    """Render the Data Overview page."""
-    apply_dark_page_style()
-    st.markdown("# 📋 Data Overview")
-    st.markdown("Explore dataset structure, statistics, and quality metrics.")
-    st.markdown("---")
+    datasets = state.get_datasets()
+    if not datasets:
+        return html.Div(
+            [
+                html.H2("📋 Data Overview"),
+                dbc.Alert(
+                    "No datasets loaded yet. Go to Data Upload first.", color="warning"
+                ),
+            ],
+            className="p-3",
+        )
 
-    if "datasets" not in st.session_state or not st.session_state["datasets"]:
-        st.warning("⚠️ No datasets loaded. Go to **Data Upload** to load data.")
-        return
+    children = [
+        html.H2("📋 Data Overview"),
+        html.P(
+            "Dataset summaries, previews, quality diagnostics, and descriptive statistics."
+        ),
+        html.Hr(),
+    ]
 
-    datasets = st.session_state["datasets"]
-
-    # ─── Dataset Selector ──────────────────────────────────────
-
-    selected_dataset = st.selectbox(
-        "Select Dataset",
-        list(datasets.keys()),
-        format_func=lambda x: f"📊 {x.title()}"
-    )
-
-    df = datasets[selected_dataset]
-    info = get_dataset_info(df)
-
-    # ─── Quick Stats ───────────────────────────────────────────
-
-    st.markdown("### 📏 Dataset Shape")
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Rows", f"{info['rows']:,}")
-    with col2:
-        st.metric("Columns", info['columns'])
-    with col3:
-        st.metric("Memory", f"{info['memory_mb']} MB")
-    with col4:
-        total_missing = sum(info['missing_values'].values())
-        st.metric("Missing Values", f"{total_missing:,}")
-
-    st.markdown("---")
-
-    # ─── Column Info ───────────────────────────────────────────
-
-    tabs = st.tabs(["📝 Data Types", "🔢 Statistics", "📉 Missing Values",
-                     "🔗 Correlations", "👁️ Data Preview"])
-
-    with tabs[0]:
-        st.markdown("### Column Data Types")
-        dtype_df = pd.DataFrame({
-            "Column": info["column_names"],
-            "Data Type": [info["dtypes"][col] for col in info["column_names"]],
-            "Category": ["Numeric" if col in info["numeric_columns"]
-                         else "Categorical" for col in info["column_names"]]
-        })
-        st.dataframe(dtype_df, use_container_width=True, hide_index=True)
-
-    with tabs[1]:
-        st.markdown("### Descriptive Statistics")
+    for name, df in datasets.items():
+        info = get_dataset_info(df)
+        detector = DatasetDetector(df, name)
         stats = get_summary_statistics(df)
 
-        if stats["numeric_summary"]:
-            st.markdown("#### Numeric Columns")
-            numeric_stats_df = pd.DataFrame(stats["numeric_summary"]).T
-            st.dataframe(numeric_stats_df.round(2), use_container_width=True)
-
-        if stats["categorical_summary"]:
-            st.markdown("#### Categorical Columns")
-            for col, col_stats in stats["categorical_summary"].items():
-                with st.expander(f"📌 {col} ({col_stats['unique_values']} unique)"):
-                    st.write(f"Top value: **{col_stats['top_value']}** "
-                             f"({col_stats['top_count']} occurrences)")
-                    st.write("Distribution:", col_stats['distribution'])
-
-    with tabs[2]:
-        st.markdown("### Missing Values Analysis")
-        missing_data = pd.DataFrame({
-            "Column": list(info["missing_values"].keys()),
-            "Missing Count": list(info["missing_values"].values()),
-            "Missing %": list(info["missing_pct"].values())
-        })
-        missing_data = missing_data[missing_data["Missing Count"] > 0]
-
-        if missing_data.empty:
-            st.success("✅ No missing values detected!")
-        else:
-            st.dataframe(missing_data, use_container_width=True, hide_index=True)
-
-    with tabs[3]:
-        st.markdown("### Correlation Matrix")
-        corr = compute_correlation_matrix(df)
-        if not corr.empty:
-            import plotly.express as px
-            fig = px.imshow(
-                corr,
-                text_auto=".2f",
-                color_continuous_scale="RdBu_r",
-                aspect="auto"
+        summary_text = (
+            f"Detected as {detector.detected_type.title()}"
+            + (
+                f" / {detector.secondary_type.title()}"
+                if detector.secondary_type
+                else ""
             )
-            fig.update_layout(
-                paper_bgcolor="#1A1D23",
-                plot_bgcolor="#0E1117",
-                font=dict(color="#FAFAFA")
+            + f" ({detector.confidence:.0%} confidence)"
+        )
+        children.extend(
+            [
+                html.H3(f"{name.title()}"),
+                html.P(summary_text),
+                dbc.Row(
+                    [
+                        _metric_card("Rows", f"{info['rows']:,}"),
+                        _metric_card("Columns", str(info["columns"])),
+                        _metric_card(
+                            "Missing Cells", f"{sum(info['missing_values'].values()):,}"
+                        ),
+                        _metric_card("Memory", f"{info['memory_mb']:.2f} MB"),
+                    ]
+                ),
+                _quality_summary(df, info, detector),
+                dbc.Card(
+                    dbc.CardBody(
+                        [
+                            html.H5("Detected Column Roles"),
+                            html.Ul(
+                                [
+                                    html.Li(
+                                        f"Date columns: {', '.join(detector.date_columns) if detector.date_columns else 'None'}"
+                                    ),
+                                    html.Li(
+                                        f"Monetary columns: {', '.join(detector.monetary_columns) if detector.monetary_columns else 'None'}"
+                                    ),
+                                    html.Li(
+                                        f"Numeric columns: {', '.join(detector.numeric_columns) if detector.numeric_columns else 'None'}"
+                                    ),
+                                    html.Li(
+                                        f"Categorical columns: {', '.join(detector.categorical_columns) if detector.categorical_columns else 'None'}"
+                                    ),
+                                ]
+                            ),
+                        ]
+                    ),
+                    className="mb-3",
+                ),
+            ]
+        )
+
+        overview_tabs = [
+            dbc.Tab(_table_from_df(df.head(20)), label="Preview"),
+            dbc.Tab(
+                _table_from_df(
+                    pd.DataFrame(
+                        [
+                            {
+                                "column": col,
+                                "dtype": dtype,
+                                "missing": info["missing_values"][col],
+                                "missing_pct": info["missing_pct"][col],
+                            }
+                            for col, dtype in info["dtypes"].items()
+                        ]
+                    ),
+                    page_size=20,
+                ),
+                label="Schema",
+            ),
+        ]
+
+        numeric_summary = stats.get("numeric_summary", {})
+        if numeric_summary:
+            numeric_df = (
+                pd.DataFrame(numeric_summary)
+                .T.reset_index()
+                .rename(columns={"index": "column"})
             )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("No numeric columns for correlation analysis.")
+            overview_tabs.append(
+                dbc.Tab(
+                    _table_from_df(numeric_df, page_size=10), label="Numeric Summary"
+                )
+            )
 
-    with tabs[4]:
-        st.markdown("### Data Preview")
-        n_rows = st.slider("Number of rows", 5, 50, 10)
-        st.dataframe(df.head(n_rows), use_container_width=True, hide_index=True)
+        cat_summary = stats.get("categorical_summary", {})
+        if cat_summary:
+            cat_df = (
+                pd.DataFrame(cat_summary)
+                .T.reset_index()
+                .rename(columns={"index": "column"})
+            )
+            overview_tabs.append(
+                dbc.Tab(
+                    _table_from_df(cat_df, page_size=10), label="Categorical Summary"
+                )
+            )
+
+        if len(detector.numeric_columns) >= 3:
+            heatmap = auto_chart(
+                df,
+                {
+                    "type": "heatmap",
+                    "columns": detector.numeric_columns[:10],
+                    "title": f"{name.title()} Correlation Heatmap",
+                },
+            )
+            if heatmap and chart_has_meaningful_data(heatmap):
+                overview_tabs.append(
+                    dbc.Tab(
+                        dcc.Graph(
+                            figure=heatmap,
+                            config={"displayModeBar": True, "responsive": True},
+                        ),
+                        label="Correlation Heatmap",
+                    )
+                )
+
+        children.append(dbc.Tabs(overview_tabs, className="mb-3"))
+
+        children.append(html.Hr())
+
+    return html.Div(children, className="p-3")
 
 
-if __name__ == "__main__":
-    render()
+def register_callbacks(app):
+    return None

@@ -66,7 +66,7 @@ class ResponseParser:
                     recommendations.append(current_rec)
                 current_rec = {
                     "title": num_match.group(1).strip(),
-                    "details": num_match.group(2).strip()
+                    "details": num_match.group(2).strip(),
                 }
                 continue
 
@@ -163,8 +163,21 @@ class ResponseParser:
     @staticmethod
     def clean_response(text: str) -> str:
         """Clean up LLM response — remove artifacts, normalize whitespace."""
+        if not text:
+            return ""
+
         # Remove code block markers
         text = re.sub(r"```[\w]*\n?", "", text)
+        # Remove stray XML-ish tokens sometimes emitted by smaller models
+        text = re.sub(r"</?think>", "", text, flags=re.IGNORECASE)
+        # Normalize bullet characters
+        text = text.replace("•", "-")
+        # Ensure markdown headers have a blank line before them
+        text = re.sub(r"(?<!\n)\n(##\s+)", r"\n\n\1", text)
+        # Remove duplicate repeated headers
+        text = re.sub(r"(##\s+[^\n]+)\n\1", r"\1", text)
+        # Collapse excessive spaces
+        text = re.sub(r"[ \t]{2,}", " ", text)
         # Normalize multiple newlines
         text = re.sub(r"\n{3,}", "\n\n", text)
         # Remove leading/trailing whitespace

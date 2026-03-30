@@ -37,7 +37,7 @@ class StrategyAgent:
         sales_report: str,
         marketing_report: str,
         customer_report: str,
-        tech_report: str
+        tech_report: str,
     ) -> str:
         """
         Synthesize all analyst reports into a strategic recommendation.
@@ -57,15 +57,31 @@ class StrategyAgent:
             sales_report=sales_report,
             marketing_report=marketing_report,
             customer_report=customer_report,
-            tech_report=tech_report
+            tech_report=tech_report,
         )
 
         self._report = self.llm_client.generate(
             prompt=prompt,
             system_prompt=PromptTemplates.SYSTEM_STRATEGIST,
             temperature=0.3,
-            max_tokens=6144  # Longer output for comprehensive strategy
+            max_tokens=6144,  # Longer output for comprehensive strategy
         )
+
+        self._report = self.parser.clean_response(self._report)
+        if self.parser.is_low_quality_response(self._report):
+            repaired = self.llm_client.generate(
+                prompt=PromptTemplates.repair_insight(
+                    data_summary=prompt,
+                    question="Rewrite this strategic synthesis to remove weak claims and improve structure.",
+                    previous_output=self._report,
+                ),
+                system_prompt=PromptTemplates.SYSTEM_ANALYST_STRICT,
+                temperature=0.1,
+                max_tokens=6144,
+            )
+            repaired = self.parser.clean_response(repaired)
+            if not self.parser.is_low_quality_response(repaired):
+                self._report = repaired
 
         self._execution_time = round(time.time() - start_time, 2)
 
@@ -83,11 +99,13 @@ class StrategyAgent:
         """
         prompt = PromptTemplates.recommendation_prompt(all_insights)
 
-        return self.llm_client.generate(
+        raw = self.llm_client.generate(
             prompt=prompt,
             system_prompt=PromptTemplates.SYSTEM_STRATEGIST,
-            temperature=0.2
+            temperature=0.2,
         )
+        cleaned = self.parser.clean_response(raw)
+        return cleaned
 
     def report(self) -> str:
         """Get the latest strategic report."""
@@ -102,7 +120,7 @@ class StrategyAgent:
             "role": self.role,
             "execution_time_seconds": self._execution_time,
             "has_report": self._report is not None,
-            "llm_model": self.llm_client.model
+            "llm_model": self.llm_client.model,
         }
 
     def __repr__(self) -> str:
